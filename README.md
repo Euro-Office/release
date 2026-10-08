@@ -20,6 +20,5 @@ Needs `git` and `gh` with write access to all involved repositories.
 
 ## Setup
 
-- GitHub App installed on Euro-Office with contents and pull requests write access to both products and all submodules
-- Repository variable `RELEASE_APP_CLIENT_ID` and secret `RELEASE_APP_PRIVATE_KEY`
-- Environment `release` with required reviewers, holding the secret for the tag workflow
+- Secret `EO_ROBOT_GITHUB_TOKEN` (org secret available to this repository): a token with contents and pull requests write access to both products and all submodules
+- Environment `release` with required reviewers for the tag workflow
