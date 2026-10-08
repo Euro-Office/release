@@ -49,17 +49,42 @@ pin() {
   echo "$sha"
 }
 
-notes() {
-  local slug=$1 old=$2 new=$3 prev=$4
-  if [ "$old" = "$new" ]; then
-    echo "No changes."
-  elif [ -n "$prev" ] && gh api "repos/$slug/git/ref/tags/$prev" >/dev/null 2>&1; then
-    gh api -X POST "repos/$slug/releases/generate-notes" \
-      -f tag_name="$TAG" -f target_commitish="$new" -f previous_tag_name="$prev" \
-      --jq .body | sed -E 's/^## /#### /'
-  else
-    echo "No tag $prev in $slug, see https://github.com/$slug/compare/$old...$new"
+# Appends "<name><TAB><PR line>" to <out>.prs and a compare link to <out>.compare.
+collect_notes() {
+  local out=$1 name=$2 slug=$3 old=$4 new=$5 prev=$6
+  [ "$old" != "$new" ] || return 0
+  if [ -z "$old" ]; then
+    echo "* $name: added at https://github.com/$slug/commit/${new:0:12}" >>"$out.compare"
+    return
   fi
+  echo "* $name: https://github.com/$slug/compare/${old:0:12}...${new:0:12}" >>"$out.compare"
+  gh api "repos/$slug/git/ref/tags/$prev" >/dev/null 2>&1 || return 0
+  gh api -X POST "repos/$slug/releases/generate-notes" \
+    -f tag_name="$TAG" -f target_commitish="$new" -f previous_tag_name="$prev" --jq .body |
+    awk -v n="$name" '/^\* .+ by @[^ ]+ in https:\/\/github\.com\/[^ ]+\/pull\/[0-9]+$/ { print n "\t" substr($0, 3) }' >>"$out.prs"
+}
+
+# stdin: "<repo><TAB><PR title> by @user in <url>". Groups by the conventional commit type of the title.
+group_notes() {
+  awk -F '\t' '
+    {
+      group = "other"; line = $2
+      if (match($2, /^[a-z]+(\([^)]*\))?!?: /)) {
+        head = substr($2, 1, RLENGTH - 2); rest = substr($2, RLENGTH + 1); scope = ""
+        if (head ~ /!$/) { group = "breaking"; sub(/!$/, "", head) }
+        if (match(head, /\(.*\)/)) { scope = substr(head, RSTART + 1, RLENGTH - 2) ": "; head = substr(head, 1, RSTART - 1) }
+        # Renovate titles runtime dependency bumps fix(deps), those are not bug fixes.
+        if (group != "breaking" && scope != "deps: " && (head == "feat" || head == "fix" || head == "perf")) group = head
+        if (group != "other") line = scope rest
+      }
+      out[group] = out[group] "* " $1 ": " line "\n"
+    }
+    END {
+      n = split("breaking feat fix perf other", order, " ")
+      title["breaking"] = "Breaking changes"; title["feat"] = "Features"; title["fix"] = "Bug fixes"
+      title["perf"] = "Performance"; title["other"] = "Other changes"
+      for (i = 1; i <= n; i++) if (order[i] in out) printf "### %s\n\n%s\n", title[order[i]], out[order[i]]
+    }'
 }
 
 prepend_changelog() {
@@ -70,7 +95,7 @@ prepend_changelog() {
 }
 
 prepare_product() {
-  local repo=$1 vfile=$2 dir="$WORK/$1" prev path url sub old new section="$WORK/$1.section.md"
+  local repo=$1 vfile=$2 dir="$WORK/$1" out="$WORK/$1" prev path url sub old new section="$WORK/$1.section.md"
   log "$repo: cloning"
   gh repo clone "$OWNER/$repo" "$dir" -- -q --depth 1 --no-tags
   git -C "$dir" fetch -q --depth 1 origin 'refs/tags/v*:refs/tags/v*'
@@ -80,13 +105,9 @@ prepare_product() {
   log "$repo: changes since ${prev:-<none>}"
   [ -n "$prev" ] || die "$repo: no previous release tag, pass --since"
 
-  {
-    echo "## $TAG"
-    echo
-    echo "### $repo"
-    echo
-    notes "$OWNER/$repo" "$(git -C "$dir" rev-parse "$prev^{commit}")" "$(git -C "$dir" rev-parse HEAD)" "$prev"
-  } >"$section"
+  : >"$out.prs"
+  : >"$out.compare"
+  collect_notes "$out" "$repo" "$OWNER/$repo" "$(git -C "$dir" rev-parse "$prev^{commit}")" "$(git -C "$dir" rev-parse HEAD)" "$prev"
 
   while read -r _ path; do
     url=$(git -C "$dir" config -f .gitmodules "submodule.$path.url")
@@ -95,15 +116,23 @@ prepare_product() {
     new=$(pin "$sub")
     log "$repo: $path -> $new"
     git -C "$dir" update-index --cacheinfo "160000,$new,$path"
-    {
-      echo
-      echo "### $path"
-      echo
-      if [ -n "$old" ]; then notes "$sub" "$old" "$new" "$prev"; else echo "New submodule."; fi
-    } >>"$section"
+    collect_notes "$out" "$path" "$sub" "$old" "$new" "$prev"
   done < <(git -C "$dir" config -f .gitmodules --get-regexp '^submodule\..*\.path$')
 
-  echo >>"$section"
+  {
+    echo "## $TAG"
+    echo
+    group_notes <"$out.prs"
+    if [ -s "$out.compare" ]; then
+      echo "### Compare to $prev"
+      echo
+      cat "$out.compare"
+    else
+      echo "No changes since $prev."
+    fi
+    echo
+  } >"$section"
+
   # Keep the existing trailing-newline style of the version file.
   if [ -n "$(tail -c 1 "$dir/$vfile")" ]; then printf '%s' "$VERSION" >"$dir/$vfile"; else echo "$VERSION" >"$dir/$vfile"; fi
   prepend_changelog "$dir/CHANGELOG.md" "$section"
