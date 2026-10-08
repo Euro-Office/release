@@ -127,7 +127,7 @@ cmd_prepare() {
   if $DRY_RUN; then
     for p in $PRODUCTS; do
       read -r repo _ < <(product "$p")
-      git -C "$WORK/$repo" show --stat --format='%h %s' HEAD
+      git --no-pager -C "$WORK/$repo" show --stat --format='%h %s' HEAD
       cat "$WORK/$repo.section.md"
     done
     log "dry run, nothing pushed. Work tree kept in $WORK"
