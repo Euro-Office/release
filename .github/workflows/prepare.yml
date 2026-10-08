@@ -31,6 +31,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check token access
+        env:
+          GH_TOKEN: ${{ secrets.EO_ROBOT_GITHUB_TOKEN }}
+        run: ./release.sh check
+
       - name: Prepare release PRs
         env:
           GH_TOKEN: ${{ secrets.EO_ROBOT_GITHUB_TOKEN }}

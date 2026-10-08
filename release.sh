@@ -3,6 +3,7 @@
 #
 #   release.sh prepare <version> [--products both|ds|de] [--since <tag>] [--dry-run]
 #   release.sh tag     <version> [--products both|ds|de] [--dry-run]
+#   release.sh check
 #
 # Needs git and an authenticated gh (GH_TOKEN) with write access to every repo involved.
 set -euo pipefail
@@ -13,7 +14,7 @@ die() { echo "error: $*" >&2; exit 1; }
 log() { echo "==> $*" >&2; }
 
 usage() {
-  sed -n '4,5p' "$0" | sed 's/^# *//' >&2
+  sed -n '4,6p' "$0" | sed 's/^# *//' >&2
   exit 2
 }
 
@@ -85,6 +86,35 @@ group_notes() {
       title["perf"] = "Performance"; title["other"] = "Other changes"
       for (i = 1; i <= n; i++) if (order[i] in out) printf "### %s\n\n%s\n", title[order[i]], out[order[i]]
     }'
+}
+
+status() { gh api -i "$@" 2>/dev/null | head -n 1 | awk '{ print $2 }' || true; }
+
+# Probes write access without changing anything. stdin: "<slug> [product]" lines.
+# A product also needs pull requests: a PR from a missing branch fails validation (422) only if allowed.
+check_access() {
+  local slug kind contents pulls bad=false
+  while read -r slug kind; do
+    contents=$(status -X POST "repos/$slug/releases/generate-notes" -f tag_name=v0.0.0-access-check.1)
+    pulls=-
+    [ "$kind" != product ] || pulls=$(status -X POST "repos/$slug/pulls" -f head=release-access-check -f base=main -f title="access check")
+    if [ "$contents" = 200 ] && [[ $pulls == - || $pulls == 422 ]]; then
+      log "$slug: ok"
+    else
+      echo "$slug: contents write -> HTTP $contents, pull requests write -> HTTP $pulls" >&2
+      bad=true
+    fi
+  done
+  ! $bad || die "token is missing write access, see above"
+}
+
+cmd_check() {
+  local repo gitmodules="$WORK/gitmodules"
+  for repo in DocumentServer DesktopEditors; do
+    echo "$OWNER/$repo product"
+    gh api "repos/$OWNER/$repo/contents/.gitmodules" -H 'Accept: application/vnd.github.raw' >"$gitmodules"
+    git config -f "$gitmodules" --get-regexp '^submodule\..*\.url$' | while read -r _ url; do slug "$url"; done
+  done | sort -u -k1,1 | check_access
 }
 
 prepend_changelog() {
@@ -227,6 +257,8 @@ cmd_tag() {
     fi
   done <"$WORK/plan"
 
+  check_access <"$WORK/plan"
+
   # Products last: their tags start the builds.
   while read -r slug sha; do
     if $DRY_RUN; then
@@ -240,6 +272,11 @@ cmd_tag() {
 }
 
 main() {
+  if [ "${1:-}" = check ]; then
+    WORK=$(mktemp -d)
+    cmd_check
+    return
+  fi
   [ $# -ge 2 ] || usage
   local cmd=$1 p
   VERSION=$2
