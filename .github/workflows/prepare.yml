@@ -1,0 +1,63 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without leading v, e.g. 9.3.6 or 9.3.6-rc.1'
+        required: true
+        type: string
+      products:
+        description: 'Products to release'
+        type: choice
+        options: [both, ds, de]
+        default: both
+      since:
+        description: 'Previous tag to build the changelog from (default: latest release tag)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Only print the release commit and changelog'
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: Euro-Office
+          repositories: >-
+            DocumentServer,DesktopEditors,core,core-fonts,sdkjs,sdkjs-forms,web-apps,
+            dictionaries,document-templates,server,document-server-integration,
+            document-server-package,document-formats,desktop-apps,desktop-sdk
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Prepare release PRs
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          VERSION: ${{ inputs.version }}
+          PRODUCTS: ${{ inputs.products }}
+          SINCE: ${{ inputs.since }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          gh auth setup-git
+          bot="$APP_SLUG[bot]"
+          git config --global user.name "$bot"
+          git config --global user.email "$(gh api "/users/$bot" --jq .id)+$bot@users.noreply.github.com"
+          args=(--products "$PRODUCTS")
+          [ -z "$SINCE" ] || args+=(--since "$SINCE")
+          [ "$DRY_RUN" != true ] || args+=(--dry-run)
+          ./release.sh prepare "$VERSION" "${args[@]}"
