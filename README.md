@@ -13,6 +13,7 @@ Releases DocumentServer and DesktopEditors with one version and tags it across a
 ```sh
 ./release.sh prepare 9.3.6-rc.1 --dry-run
 ./release.sh tag 9.3.6-rc.1 --dry-run
+./release.sh notes   # changelog of the next release, also posted nightly to issue #4
 ./release.sh check   # token has write access to every repo involved, changes nothing
 ./test.sh
 ```

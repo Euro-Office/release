@@ -1,0 +1,35 @@
+name: Pending changelog
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build changelog
+        env:
+          GH_TOKEN: ${{ secrets.EO_ROBOT_GITHUB_TOKEN }}
+        run: ./release.sh notes >notes.md
+
+      - name: Update issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo 'Tracking changes that are pending for release. This issue is mainly an overview to be able to tell what is merged already and will become available with the next release.'
+            echo
+            echo "_Updated $(date -u '+%Y-%m-%d %H:%M UTC') by [${GITHUB_WORKFLOW}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})._"
+            echo
+            cat notes.md
+          } >body.md
+          gh issue edit 4 -R "$GITHUB_REPOSITORY" --body-file body.md

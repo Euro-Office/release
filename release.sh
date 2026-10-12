@@ -4,6 +4,7 @@
 #   release.sh prepare <version> [--products both|ds|de] [--since <tag>] [--dry-run]
 #   release.sh tag     <version> [--products both|ds|de] [--dry-run]
 #   release.sh check
+#   release.sh notes
 #
 # Needs git and an authenticated gh (GH_TOKEN) with write access to every repo involved.
 set -euo pipefail
@@ -14,7 +15,7 @@ die() { echo "error: $*" >&2; exit 1; }
 log() { echo "==> $*" >&2; }
 
 usage() {
-  sed -n '4,6p' "$0" | sed 's/^# *//' >&2
+  sed -n '4,7p' "$0" | sed 's/^# *//' >&2
   exit 2
 }
 
@@ -132,12 +133,12 @@ prepend_changelog() {
   mv "$file.new" "$file"
 }
 
-prepare_product() {
-  local repo=$1 vfile=$2 dir="$WORK/$1" out="$WORK/$1" prev path url sub old new section="$WORK/$1.section.md"
+# Clones the product, pins its submodules in the index and writes the changelog section.
+notes_product() {
+  local repo=$1 dir="$WORK/$1" out="$WORK/$1" prev path url sub old new section="$WORK/$1.section.md"
   log "$repo: cloning"
   gh repo clone "$OWNER/$repo" "$dir" -- -q --depth 1 --no-tags
   git -C "$dir" fetch -q --depth 1 origin 'refs/tags/v*:refs/tags/v*'
-  git -C "$dir" checkout -q -b "release/$TAG"
 
   prev=${SINCE:-$(git -C "$dir" for-each-ref --sort=-creatordate --format='%(refname:short)' refs/tags | previous_tag "$TAG")}
   log "$repo: changes since ${prev:-<none>}"
@@ -170,10 +171,15 @@ prepare_product() {
     fi
     echo
   } >"$section"
+}
 
+prepare_product() {
+  local repo=$1 vfile=$2 dir="$WORK/$1"
+  notes_product "$repo"
+  git -C "$dir" checkout -q -b "release/$TAG"
   # Keep the existing trailing-newline style of the version file.
   if [ -n "$(tail -c 1 "$dir/$vfile")" ]; then printf '%s' "$VERSION" >"$dir/$vfile"; else echo "$VERSION" >"$dir/$vfile"; fi
-  prepend_changelog "$dir/CHANGELOG.md" "$section"
+  prepend_changelog "$dir/CHANGELOG.md" "$WORK/$repo.section.md"
   git -C "$dir" add "$vfile" CHANGELOG.md
   git -C "$dir" commit -q -s -m "chore(release): $TAG"
 }
@@ -215,6 +221,17 @@ cmd_prepare() {
     gh pr comment "${urls[0]}" --body "Released together with ${urls[1]}" >/dev/null
     gh pr comment "${urls[1]}" --body "Released together with ${urls[0]}" >/dev/null
   fi
+}
+
+# Changelog of everything that the next release would contain, per product.
+cmd_notes() {
+  local p repo
+  for p in $PRODUCTS; do
+    read -r repo _ < <(product "$p")
+    notes_product "$repo"
+    echo "## $repo"
+    sed 1d "$WORK/$repo.section.md"
+  done
 }
 
 # Prints the commit a tag points to, or nothing if the tag does not exist.
@@ -283,6 +300,13 @@ main() {
   if [ "${1:-}" = check ]; then
     WORK=$(mktemp -d)
     cmd_check
+    return
+  fi
+  if [ "${1:-}" = notes ]; then
+    # A prerelease placeholder makes previous_tag pick the latest tag of any kind.
+    TAG=v0.0.0-next.1 PRODUCTS="ds de" SINCE="" WORK=$(mktemp -d)
+    : >"$WORK/pins"
+    cmd_notes
     return
   fi
   [ $# -ge 2 ] || usage
