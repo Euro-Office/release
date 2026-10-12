@@ -41,4 +41,13 @@ want='### Breaking changes
 * web-apps: fix(deps): update svgo by @g in https://github.com/Euro-Office/web-apps/pull/7'
 check "group_notes" "$(group_notes <<<"$prs")" "$want"
 check "group_notes empty" "$(group_notes </dev/null)" ""
+tmp=$(mktemp -d)
+printf '# Change log\n\n## 9.3.5\n\n* old\n' >"$tmp/CHANGELOG.md"
+printf '## v9.3.6\n\n* new\n' >"$tmp/section"
+prepend_changelog "$tmp/CHANGELOG.md" "$tmp/section"
+check "keeps existing header" "$(cat "$tmp/CHANGELOG.md")" $'# Change log\n\n## v9.3.6\n\n* new\n## 9.3.5\n\n* old'
+rm "$tmp/CHANGELOG.md"
+prepend_changelog "$tmp/CHANGELOG.md" "$tmp/section"
+check "new changelog" "$(cat "$tmp/CHANGELOG.md")" $'# Changelog\n\n## v9.3.6\n\n* new'
+rm -r "$tmp"
 echo ok

@@ -117,10 +117,18 @@ cmd_check() {
   done | sort -u -k1,1 | check_access
 }
 
+# Inserts the section below the file's top-level heading, keeping an existing one.
 prepend_changelog() {
-  local file=$1 section=$2 rest=""
-  [ -f "$file" ] && rest=$(sed '1{/^# Changelog$/d;}' "$file" | sed '/./,$!d')
-  { echo "# Changelog"; echo; cat "$section"; [ -z "$rest" ] || echo "$rest"; } >"$file.new"
+  local file=$1 section=$2 header="# Changelog" rest=""
+  if [ -f "$file" ]; then
+    if head -n 1 "$file" | grep -q '^# '; then
+      header=$(head -n 1 "$file")
+      rest=$(sed 1d "$file" | sed '/./,$!d')
+    else
+      rest=$(cat "$file")
+    fi
+  fi
+  { echo "$header"; echo; cat "$section"; [ -z "$rest" ] || echo "$rest"; } >"$file.new"
   mv "$file.new" "$file"
 }
 
