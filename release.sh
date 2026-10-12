@@ -224,7 +224,8 @@ cmd_prepare() {
   fi
 }
 
-pr_links() { sed -E 's#in (https://github\.com/[^ ]+/pull/([0-9]+))$#in [\#\2](\1)#'; }
+# Short PR links and plain author names, so the issue does not notify anyone.
+pr_links() { sed -E 's#by @([^ ]+) in (https://github\.com/[^ ]+/pull/([0-9]+))$#by \1 in [\#\3](\2)#'; }
 
 # Changelog of everything that the next release would contain, per product.
 cmd_notes() {
