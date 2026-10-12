@@ -223,6 +223,8 @@ cmd_prepare() {
   fi
 }
 
+pr_links() { sed -E 's#in (https://github\.com/[^ ]+/pull/([0-9]+))$#in [\#\2](\1)#'; }
+
 # Changelog of everything that the next release would contain, per product.
 cmd_notes() {
   local p repo
@@ -230,7 +232,7 @@ cmd_notes() {
     read -r repo _ < <(product "$p")
     notes_product "$repo"
     echo "## $repo"
-    sed 1d "$WORK/$repo.section.md"
+    sed 1d "$WORK/$repo.section.md" | pr_links
   done
 }
 

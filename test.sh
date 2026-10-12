@@ -41,6 +41,7 @@ want='### Breaking changes
 * core: chore(deps): bump x by @f in https://github.com/Euro-Office/core/pull/6
 * web-apps: fix(deps): update svgo by @g in https://github.com/Euro-Office/web-apps/pull/7'
 check "group_notes" "$(group_notes <<<"$prs")" "$want"
+check "pr_links" "$(pr_links <<<"* core: x by @b in https://github.com/Euro-Office/core/pull/2")" "* core: x by @b in [#2](https://github.com/Euro-Office/core/pull/2)"
 check "group_notes empty" "$(group_notes </dev/null)" ""
 tmp=$(mktemp -d)
 printf '# Change log\n\n## 9.3.5\n\n* old\n' >"$tmp/CHANGELOG.md"
