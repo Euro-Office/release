@@ -28,12 +28,13 @@ product() {
 }
 
 valid_version() { [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?$ ]]; }
-is_stable() { [[ $1 =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; }
+# A numeric suffix (v9.3.5-2) is a rebuild of a stable release.
+is_stable() { [[ $1 =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; }
 
 # stdin: tags, newest first. A stable release compares against the previous stable one.
 previous_tag() {
-  local re='v[0-9]+\.[0-9]+\.[0-9]+'
-  is_stable "$1" || re="$re(-[0-9a-z.]+)?"
+  local re='v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?'
+  is_stable "$1" || re='v[0-9]+\.[0-9]+\.[0-9]+(-[0-9a-z.]+)?'
   grep -Ex "$re" | grep -vxF "$1" | head -n 1 || true
 }
 

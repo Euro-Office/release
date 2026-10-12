@@ -9,6 +9,7 @@ check "rc after rc" "$(previous_tag v9.3.5-rc.3 <<<"$tags")" v9.3.5-rc.2
 check "stable after rcs" "$(previous_tag v9.3.5 <<<"$tags")" v9.3.4
 check "ignores itself" "$(previous_tag v9.3.5-rc.2 <<<"$tags")" v9.3.5-rc.1
 check "numeric suffix" "$(previous_tag v0.0.0-next.1 <<<$'v9.3.5-2\nv9.3.5-1\nv9.3.1')" v9.3.5-2
+check "stable after rebuild" "$(previous_tag v9.3.6 <<<$'v9.3.6-rc.1\nv9.3.5-2\nv9.3.5-1\nv9.3.1')" v9.3.5-2
 check "no previous" "$(previous_tag v1.0.0 <<<"")" ""
 check "slug https" "$(slug https://github.com/Euro-Office/core.git)" Euro-Office/core
 check "slug ssh" "$(slug git@github.com:Euro-Office/core)" Euro-Office/core
