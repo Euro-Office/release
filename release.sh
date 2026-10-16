@@ -60,10 +60,10 @@ collect_notes() {
   local out=$1 name=$2 slug=$3 old=$4 new=$5 prev=$6
   [ "$old" != "$new" ] || return 0
   if [ -z "$old" ]; then
-    echo "* $name: added at https://github.com/$slug/commit/${new:0:12}" >>"$out.compare"
+    echo "* $name: added at <https://github.com/$slug/commit/${new:0:12}>" >>"$out.compare"
     return
   fi
-  echo "* $name: https://github.com/$slug/compare/${old:0:12}...${new:0:12}" >>"$out.compare"
+  echo "* $name: <https://github.com/$slug/compare/${old:0:12}...${new:0:12}>" >>"$out.compare"
   if gh api "repos/$slug/git/ref/tags/$prev" >/dev/null 2>&1; then
     gh api -X POST "repos/$slug/releases/generate-notes" \
       -f tag_name="$TAG" -f target_commitish="$new" -f previous_tag_name="$prev" --jq .body
