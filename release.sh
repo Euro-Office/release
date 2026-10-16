@@ -266,6 +266,11 @@ cmd_tag() {
   for p in $PRODUCTS; do
     read -r repo vfile < <(product "$p")
     merge=$(gh pr list -R "$OWNER/$repo" --head "release/$TAG" --state merged --json mergeCommit --jq '.[0].mergeCommit.oid')
+    # A dry run may preview an unmerged release PR from its head commit.
+    if [ -z "$merge" ] && $DRY_RUN; then
+      merge=$(gh pr list -R "$OWNER/$repo" --head "release/$TAG" --state open --json headRefOid --jq '.[0].headRefOid')
+      [ -z "$merge" ] || log "$repo: release/$TAG is not merged, previewing its head $merge"
+    fi
     [ -n "$merge" ] || die "$repo: no merged PR from release/$TAG"
     got=$(gh api "repos/$OWNER/$repo/contents/$vfile?ref=$merge" -H 'Accept: application/vnd.github.raw' | tr -d '[:space:]')
     [ "$got" = "$VERSION" ] || die "$repo: $vfile is $got at $merge, expected $VERSION"
