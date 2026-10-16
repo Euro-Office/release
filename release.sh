@@ -52,6 +52,9 @@ pin() {
   echo "$sha"
 }
 
+# One retry, so a single empty API response does not abort a release.
+gh_retry() { gh "$@" || { sleep 5; gh "$@"; }; }
+
 # Appends "<name><TAB><PR line>" to <out>.prs and a compare link to <out>.compare.
 collect_notes() {
   local out=$1 name=$2 slug=$3 old=$4 new=$5 prev=$6
@@ -67,8 +70,8 @@ collect_notes() {
   else
     # The submodule lacks the product's previous tag (DesktopEditors tagged them v9.3.5-2-desktop):
     # list the merged PRs of the pinned range instead.
-    gh api "repos/$slug/compare/$old...$new" --paginate --jq '.commits[].sha' | while read -r sha; do
-      gh api "repos/$slug/commits/$sha/pulls" --jq '.[] | select(.merged_at) | "* \(.title) by @\(.user.login) in \(.html_url)"'
+    gh_retry api "repos/$slug/compare/$old...$new" --paginate --jq '.commits[].sha' | while read -r sha; do
+      gh_retry api "repos/$slug/commits/$sha/pulls" --jq '.[] | select(.merged_at) | "* \(.title) by @\(.user.login) in \(.html_url)"'
     done | awk '!seen[$0]++'
   fi | awk -v n="$name" '/^\* .+ by @[^ ]+ in https:\/\/github\.com\/[^ ]+\/pull\/[0-9]+$/ { print n "\t" substr($0, 3) }' >>"$out.prs"
 }
