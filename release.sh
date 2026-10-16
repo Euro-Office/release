@@ -61,11 +61,20 @@ collect_notes() {
     return
   fi
   echo "* $name: https://github.com/$slug/compare/${old:0:12}...${new:0:12}" >>"$out.compare"
-  gh api "repos/$slug/git/ref/tags/$prev" >/dev/null 2>&1 || return 0
-  gh api -X POST "repos/$slug/releases/generate-notes" \
-    -f tag_name="$TAG" -f target_commitish="$new" -f previous_tag_name="$prev" --jq .body |
-    awk -v n="$name" '/^\* .+ by @[^ ]+ in https:\/\/github\.com\/[^ ]+\/pull\/[0-9]+$/ { print n "\t" substr($0, 3) }' >>"$out.prs"
+  if gh api "repos/$slug/git/ref/tags/$prev" >/dev/null 2>&1; then
+    gh api -X POST "repos/$slug/releases/generate-notes" \
+      -f tag_name="$TAG" -f target_commitish="$new" -f previous_tag_name="$prev" --jq .body
+  else
+    # The submodule lacks the product's previous tag (DesktopEditors tagged them v9.3.5-2-desktop):
+    # list the merged PRs of the pinned range instead.
+    gh api "repos/$slug/compare/$old...$new" --paginate --jq '.commits[].sha' | while read -r sha; do
+      gh api "repos/$slug/commits/$sha/pulls" --jq '.[] | select(.merged_at) | "* \(.title) by @\(.user.login) in \(.html_url)"'
+    done | awk '!seen[$0]++'
+  fi | awk -v n="$name" '/^\* .+ by @[^ ]+ in https:\/\/github\.com\/[^ ]+\/pull\/[0-9]+$/ { print n "\t" substr($0, 3) }' >>"$out.prs"
 }
+
+# [repo#N](url) links and plain author names, so neither cross-references nor mentions notify anyone.
+pr_links() { sed -E 's#by @([^ ]+) in (https://github\.com/[^/ ]+/([^/ ]+)/pull/([0-9]+))$#by \1 in [\3\#\4](\2)#'; }
 
 # stdin: "<repo><TAB><PR title> by @user in <url>". Groups by the conventional commit type of the title.
 group_notes() {
@@ -162,7 +171,7 @@ notes_product() {
   {
     echo "## $TAG"
     echo
-    group_notes <"$out.prs"
+    group_notes <"$out.prs" | pr_links
     if [ -s "$out.compare" ]; then
       echo "### Compare to $prev"
       echo
@@ -186,7 +195,7 @@ prepare_product() {
 }
 
 cmd_prepare() {
-  local p repo vfile url urls=()
+  local p repo vfile url urls=() reran=false
   for p in $PRODUCTS; do
     read -r repo vfile < <(product "$p")
     git ls-remote --exit-code --tags "https://github.com/$OWNER/$repo.git" "refs/tags/$TAG" >/dev/null &&
@@ -211,21 +220,23 @@ cmd_prepare() {
   for p in $PRODUCTS; do
     read -r repo _ < <(product "$p")
     git -C "$WORK/$repo" push -q --force origin "release/$TAG"
-    url=$(gh pr view "release/$TAG" -R "$OWNER/$repo" --json url --jq .url 2>/dev/null ||
-      gh pr create -R "$OWNER/$repo" --base main --head "release/$TAG" \
+    if url=$(gh pr view "release/$TAG" -R "$OWNER/$repo" --json url --jq .url 2>/dev/null); then
+      gh pr edit "$url" --body-file "$WORK/$repo.section.md" >/dev/null
+      reran=true
+    else
+      url=$(gh pr create -R "$OWNER/$repo" --base main --head "release/$TAG" \
         --title "chore(release): $TAG" --body-file "$WORK/$repo.section.md")
+    fi
     log "$repo: $url"
     urls+=("$url")
   done
 
-  if [ ${#urls[@]} -eq 2 ]; then
+  if [ ${#urls[@]} -eq 2 ] && ! $reran; then
     gh pr comment "${urls[0]}" --body "Released together with ${urls[1]}" >/dev/null
     gh pr comment "${urls[1]}" --body "Released together with ${urls[0]}" >/dev/null
   fi
 }
 
-# Short PR links and plain author names, so the issue does not notify anyone.
-pr_links() { sed -E 's#by @([^ ]+) in (https://github\.com/[^ ]+/pull/([0-9]+))$#by \1 in [\#\3](\2)#'; }
 
 # Changelog of everything that the next release would contain, per product.
 cmd_notes() {
@@ -234,7 +245,7 @@ cmd_notes() {
     read -r repo _ < <(product "$p")
     notes_product "$repo"
     echo "## $repo"
-    sed 1d "$WORK/$repo.section.md" | pr_links
+    sed 1d "$WORK/$repo.section.md"
   done
 }
 
