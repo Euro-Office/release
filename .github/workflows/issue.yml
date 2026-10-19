@@ -1,0 +1,46 @@
+name: Release issue
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without leading v, e.g. 9.3.6-rc.1 or 9.3.6'
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/release
+
+      # One issue per version ("Release 9.3.6"), one checklist comment per round.
+      - name: Open the release issue and add the round checklist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ $VERSION =~ ^([0-9]+\.[0-9]+\.[0-9]+)(-([a-z]+\.[0-9]+))?$ ]] || { echo "::error::invalid version: $VERSION"; exit 1; }
+          base=${BASH_REMATCH[1]}
+          # Download server directory of the build: 9.3.6 -> 9.3.6/0, 9.3.6-rc.1 -> 9.3.6/0~rc.1
+          build=0${BASH_REMATCH[3]:+~${BASH_REMATCH[3]}}
+          render() { sed -e "s/{{VERSION}}/$VERSION/g" -e "s/{{BASE}}/$base/g" -e "s/{{BUILD}}/$build/g" "$1"; }
+
+          title="Release $base"
+          url=$(gh issue list -R "$GITHUB_REPOSITORY" --search "\"$title\" in:title" --json title,url \
+            --jq "map(select(.title == \"$title\"))[0].url // empty")
+          if [ -z "$url" ]; then
+            render .github/release/issue.md >issue.md
+            url=$(gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body-file issue.md --assignee "$GITHUB_ACTOR")
+          fi
+          render .github/release/round.md >round.md
+          gh issue comment "$url" --body-file round.md
+          echo "$url" >>"$GITHUB_STEP_SUMMARY"
