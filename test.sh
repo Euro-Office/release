@@ -53,4 +53,17 @@ rm "$tmp/CHANGELOG.md"
 prepend_changelog "$tmp/CHANGELOG.md" "$tmp/section"
 check "new changelog" "$(cat "$tmp/CHANGELOG.md")" $'# Changelog\n\n## v9.3.6\n\n* new'
 rm -r "$tmp"
+tmp=$(mktemp -d)
+mkdir -p "$tmp"/desktopeditors/{9.3.5/2,9.3.6/0,9.3.7/0~rc.1} "$tmp"/docserver/9.3.6/0
+for p in windows-x64.exe windows-arm64.exe macos-arm64.dmg; do touch "$tmp/desktopeditors/9.3.6/0/Nextcloud-Office-DesktopEditors-9.3.6-0-$p"; done
+OFFICE_ROOT=$tmp scripts/update-latest-symlink.sh >/dev/null
+check "desktop latest" "$(readlink "$tmp/desktopeditors/latest")" 9.3.6/0
+check "desktop fixed link" "$(readlink "$tmp/desktopeditors/Nextcloud-Office-DesktopEditors-latest-macos-arm64.dmg")" 9.3.6/0/Nextcloud-Office-DesktopEditors-9.3.6-0-macos-arm64.dmg
+check "docserver latest" "$(readlink "$tmp/docserver/latest")" 9.3.6/0
+mkdir -p "$tmp"/desktopeditors/9.3.7/0 "$tmp"/docserver/9.3.7/0
+touch "$tmp/desktopeditors/9.3.7/0/Nextcloud-Office-DesktopEditors-9.3.7-0-windows-x64.exe"
+if OFFICE_ROOT=$tmp scripts/update-latest-symlink.sh >/dev/null 2>&1; then echo "FAIL missing packages pass"; exit 1; fi
+check "desktop keeps latest" "$(readlink "$tmp/desktopeditors/latest")" 9.3.6/0
+check "docserver moves on" "$(readlink "$tmp/docserver/latest")" 9.3.7/0
+rm -r "$tmp"
 echo ok

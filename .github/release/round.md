@@ -23,11 +23,10 @@ Take the artifacts from the DesktopEditors tag build, not from the PR build.
 
 - [ ] Windows: paste the URLs of `windows-signing-bundle-nextcloud-office-amd64` and `-arm64` into brander (one at a time), queue signing and download the installers
 - [ ] macOS: paste the URL of `macos-packages-nextcloud-office-arm64` into brander, queue signing and download the DMG
-- [ ] Rename them to `nextcloud-office-desktopeditors-v{{VERSION}}-x86_64.exe`, `-arm64.exe` and `-arm64.dmg`
-- [ ] Upload them and remove the unsigned `.exe`/`.dmg`: `scp *.exe *.dmg office_uploader@download.nextcloud.com:/var/www/html/office/desktopeditors/{{BASE}}/{{BUILD}}/`
-- [ ] Replace the unsigned `.exe`/`.dmg` on [nextcloud-releases/Office-DesktopEditors](https://github.com/nextcloud-releases/Office-DesktopEditors/releases/tag/v{{VERSION}}): `gh release upload v{{VERSION}} -R nextcloud-releases/Office-DesktopEditors *.exe *.dmg`, then delete the unsigned assets
+- [ ] Upload them over the unsigned ones, keeping the names brander gives them (`Nextcloud-Office-DesktopEditors-{{BASE}}-{{BUILD}}-windows-x64.exe`, `-windows-arm64.exe`, `-macos-arm64.dmg`): `scp *.exe *.dmg office_uploader@download.nextcloud.com:/var/www/html/office/desktopeditors/{{BASE}}/{{BUILD}}/`
+- [ ] Replace the unsigned `.exe`/`.dmg` on [nextcloud-releases/Office-DesktopEditors](https://github.com/nextcloud-releases/Office-DesktopEditors/releases/tag/v{{VERSION}}): `gh release upload --clobber v{{VERSION}} -R nextcloud-releases/Office-DesktopEditors *.exe *.dmg`
 - [ ] Add the changelog to both DesktopEditors releases (until the build adds it)
-- [ ] Final release only: `ssh office_uploader@download.nextcloud.com bash /home/office_uploader/update-latest-symlink.sh` (rc builds never become `latest`)
+- [ ] Final release only: `ssh office_uploader@download.nextcloud.com bash /home/office_uploader/update-latest-symlink.sh` (rc builds never become `latest`). It refuses to move the desktop editors while a signed package is missing
 
 ### Verify
 
