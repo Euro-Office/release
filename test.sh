@@ -11,6 +11,9 @@ check "ignores itself" "$(previous_tag v9.3.5-rc.2 <<<"$tags")" v9.3.5-rc.1
 check "numeric suffix" "$(previous_tag v0.0.0-next.1 <<<$'v9.3.5-2\nv9.3.5-1\nv9.3.1')" v9.3.5-2
 check "stable after rebuild" "$(previous_tag v9.3.6 <<<$'v9.3.6-rc.1\nv9.3.5-2\nv9.3.5-1\nv9.3.1')" v9.3.5-2
 check "no previous" "$(previous_tag v1.0.0 <<<"")" ""
+if (check_shared <(printf 'a/core 1\na/core 2\na/sdkjs 3\n')) 2>/dev/null; then echo "FAIL check_shared mismatch"; exit 1; fi
+check_shared <(printf 'a/core 1\na/sdkjs 3\n')
+check "release branch" "$(release_branch 9.3.6-rc.2)" stable-9.3.6
 check "slug https" "$(slug https://github.com/Euro-Office/core.git)" Euro-Office/core
 check "slug ssh" "$(slug git@github.com:Euro-Office/core)" Euro-Office/core
 if ! { valid_version 9.3.6 && valid_version 9.3.6-rc.1 && ! valid_version v9.3.6 && ! valid_version 9.3; }; then

@@ -4,11 +4,12 @@ When releasing a single product (`products: ds|de`), skip the other product's it
 
 ### Prepare
 
+- [ ] Second round onwards: fixes for this version are merged on `main` and backported to `stable-{{BASE}}` (`/backport to stable-{{BASE}}` on the merged PR)
 - [ ] [Prepare release](https://github.com/Euro-Office/release/actions/workflows/prepare.yml) with `{{VERSION}}`
 - [ ] CI is green on the release PRs of [DocumentServer](https://github.com/Euro-Office/DocumentServer/pulls?q=head%3Arelease%2Fv{{VERSION}}) and [DesktopEditors](https://github.com/Euro-Office/DesktopEditors/pulls?q=head%3Arelease%2Fv{{VERSION}})
 - [ ] QA the PR builds (linked in the PR comments): packages on the supported distributions, Docker image, desktop installers
 - [ ] Blockers are fixed or moved
-- [ ] Approve and merge both release PRs
+- [ ] Approve and merge both release PRs (from the second round on they target `stable-{{BASE}}`)
 
 ### Tag
 

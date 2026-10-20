@@ -16,6 +16,10 @@ on:
         description: 'Previous tag to build the changelog from (default: latest release tag)'
         required: false
         type: string
+      bump_submodules:
+        description: 'Pin submodules to their latest commit (off: keep the commits the products point at)'
+        type: boolean
+        default: true
       dry_run:
         description: 'Only print the release commit and changelog'
         type: boolean
@@ -42,6 +46,7 @@ jobs:
           VERSION: ${{ inputs.version }}
           PRODUCTS: ${{ inputs.products }}
           SINCE: ${{ inputs.since }}
+          BUMP_SUBMODULES: ${{ inputs.bump_submodules }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           gh auth setup-git
@@ -50,5 +55,6 @@ jobs:
           git config --global user.email "$id+$login@users.noreply.github.com"
           args=(--products "$PRODUCTS")
           [ -z "$SINCE" ] || args+=(--since "$SINCE")
+          [ "$BUMP_SUBMODULES" != false ] || args+=(--no-bump)
           [ "$DRY_RUN" != true ] || args+=(--dry-run)
           ./release.sh prepare "$VERSION" "${args[@]}"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Release DocumentServer and DesktopEditors with one version, tagged across all submodules.
 #
-#   release.sh prepare <version> [--products both|ds|de] [--since <tag>] [--dry-run]
+#   release.sh prepare <version> [--products both|ds|de] [--since <tag>] [--no-bump] [--dry-run]
 #   release.sh tag     <version> [--products both|ds|de] [--dry-run]
 #   release.sh check
 #   release.sh notes
@@ -38,15 +38,18 @@ previous_tag() {
   grep -Ex "$re" | grep -vxF "$1" | head -n 1 || true
 }
 
+release_branch() { echo "stable-${1%%-*}"; }
+
 slug() { sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##; s#/$##' <<<"$1"; }
 
 # The resolved SHA is cached per repo so shared submodules get the same commit in every product.
+# <ref> is HEAD, or refs/heads/$BRANCH once the first tag of the version created the release branch.
 pin() {
-  local slug=$1 sha
+  local slug=$1 ref=$2 sha
   sha=$(awk -v s="$slug" '$1 == s { print $2 }' "$WORK/pins")
   if [ -z "$sha" ]; then
-    sha=$(git ls-remote "https://github.com/$slug.git" HEAD | awk '$2 == "HEAD" { print $1 }')
-    [ -n "$sha" ] || die "cannot resolve HEAD of $slug"
+    sha=$(git ls-remote "https://github.com/$slug.git" "$ref" | awk -v r="$ref" '$2 == r { print $1 }')
+    [ -n "$sha" ] || die "cannot resolve $ref of $slug"
     echo "$slug $sha" >>"$WORK/pins"
   fi
   echo "$sha"
@@ -102,6 +105,14 @@ group_notes() {
     }'
 }
 
+# <file>: "<slug> <sha>" lines, sorted and unique.
+check_shared() {
+  if awk '{ print $1 }' "$1" | uniq -d | grep -q .; then
+    awk 'NR == FNR { n[$1]++; next } n[$1] > 1' "$1" "$1" >&2
+    die "shared submodules point at different commits"
+  fi
+}
+
 status() { gh api -i "$@" 2>/dev/null | head -n 1 | awk '{ print $2 }' || true; }
 
 # Probes write access without changing anything. stdin: "<slug> [product]" lines.
@@ -147,10 +158,19 @@ prepend_changelog() {
 }
 
 # Clones the product, pins its submodules in the index and writes the changelog section.
+# Writes the branch the release PR targets to <repo>.base.
 notes_product() {
-  local repo=$1 dir="$WORK/$1" out="$WORK/$1" prev path url sub old new section="$WORK/$1.section.md"
-  log "$repo: cloning"
-  gh repo clone "$OWNER/$repo" "$dir" -- -q --depth 1 --no-tags
+  local repo=$1 dir="$WORK/$1" out="$WORK/$1" prev path url sub old new ref=HEAD base=main section="$WORK/$1.section.md" rc=0
+  # Exit code 2 means no such branch; anything else must not silently fall back to main.
+  git ls-remote --exit-code "https://github.com/$OWNER/$repo.git" "refs/heads/$BRANCH" >/dev/null || rc=$?
+  case $rc in
+    0) ref=refs/heads/$BRANCH base=$BRANCH ;;
+    2) ;;
+    *) die "$repo: cannot look up $BRANCH" ;;
+  esac
+  echo "$base" >"$out.base"
+  log "$repo: cloning $base"
+  gh repo clone "$OWNER/$repo" "$dir" -- -q --depth 1 --no-tags --branch "$base"
   git -C "$dir" fetch -q --depth 1 origin 'refs/tags/v*:refs/tags/v*'
 
   prev=${SINCE:-$(git -C "$dir" for-each-ref --sort=-creatordate --format='%(refname:short)' refs/tags | previous_tag "$TAG")}
@@ -165,7 +185,12 @@ notes_product() {
     url=$(git -C "$dir" config -f .gitmodules "submodule.$path.url")
     sub=$(slug "$url")
     old=$(git -C "$dir" ls-tree "$prev" -- "$path" | awk '{ print $3 }')
-    new=$(pin "$sub")
+    if $BUMP; then
+      new=$(pin "$sub" "$ref")
+    else
+      new=$(git -C "$dir" ls-tree HEAD -- "$path" | awk '{ print $3 }')
+      echo "$sub $new" >>"$WORK/pins"
+    fi
     log "$repo: $path -> $new"
     git -C "$dir" update-index --cacheinfo "160000,$new,$path"
     collect_notes "$out" "$path" "$sub" "$old" "$new" "$prev"
@@ -209,6 +234,9 @@ cmd_prepare() {
     read -r repo vfile < <(product "$p")
     prepare_product "$repo" "$vfile"
   done
+  # Only --no-bump can disagree: it keeps what each product points at.
+  sort -u "$WORK/pins" -o "$WORK/pins"
+  check_shared "$WORK/pins"
 
   if $DRY_RUN; then
     for p in $PRODUCTS; do
@@ -227,7 +255,7 @@ cmd_prepare() {
       gh pr edit "$url" --body-file "$WORK/$repo.section.md" >/dev/null
       reran=true
     else
-      url=$(gh pr create -R "$OWNER/$repo" --base main --head "release/$TAG" \
+      url=$(gh pr create -R "$OWNER/$repo" --base "$(cat "$WORK/$repo.base")" --head "release/$TAG" \
         --title "chore(release): $TAG" --body-file "$WORK/$repo.section.md")
     fi
     log "$repo: $url"
@@ -286,10 +314,7 @@ cmd_tag() {
   done
 
   sort -u "$WORK/subs" -o "$WORK/subs"
-  if awk '{ print $1 }' "$WORK/subs" | uniq -d | grep -q .; then
-    awk 'NR == FNR { n[$1]++; next } n[$1] > 1' "$WORK/subs" "$WORK/subs" >&2
-    die "shared submodules point at different commits"
-  fi
+  check_shared "$WORK/subs"
 
   # Check every tag before creating any, so a mismatch never leaves a partial release.
   cat "$WORK/subs" "$WORK/products" >"$WORK/plan"
@@ -317,6 +342,18 @@ cmd_tag() {
     gh api "repos/$slug/git/refs" -f ref="refs/tags/$TAG" -f sha="$sha" >/dev/null
     log "$slug: tagged $TAG"
   done <"$WORK/todo"
+
+  # The first tag of a version branches every repo, so later rounds only get what is backported.
+  while read -r slug sha; do
+    if gh api "repos/$slug/git/ref/heads/$BRANCH" >/dev/null 2>&1; then
+      log "$slug: $BRANCH exists"
+    elif $DRY_RUN; then
+      log "would branch $slug $BRANCH -> $sha"
+    else
+      gh api "repos/$slug/git/refs" -f ref="refs/heads/$BRANCH" -f sha="$sha" >/dev/null
+      log "$slug: created $BRANCH"
+    fi
+  done <"$WORK/plan"
 }
 
 main() {
@@ -326,8 +363,8 @@ main() {
     return
   fi
   if [ "${1:-}" = notes ]; then
-    # A prerelease placeholder makes previous_tag pick the latest tag of any kind.
-    TAG=v0.0.0-next.1 PRODUCTS="ds de" SINCE="" WORK=$(mktemp -d)
+    # A prerelease placeholder makes previous_tag pick the latest tag of any kind, its missing branch pins default branches.
+    TAG=v0.0.0-next.1 BRANCH=$(release_branch 0.0.0) BUMP=true PRODUCTS="ds de" SINCE="" WORK=$(mktemp -d)
     : >"$WORK/pins"
     cmd_notes
     return
@@ -339,10 +376,12 @@ main() {
   PRODUCTS="ds de"
   SINCE=""
   DRY_RUN=false
+  BUMP=true
   while [ $# -gt 0 ]; do
     case $1 in
       --products) [ "$2" = both ] || PRODUCTS=$2; shift 2 ;;
       --since) SINCE=$2; shift 2 ;;
+      --no-bump) BUMP=false; shift ;;
       --dry-run) DRY_RUN=true; shift ;;
       *) usage ;;
     esac
@@ -350,6 +389,7 @@ main() {
   for p in $PRODUCTS; do product "$p" >/dev/null; done
   valid_version "$VERSION" || die "invalid version: $VERSION (expected e.g. 9.3.6 or 9.3.6-rc.1)"
   TAG="v$VERSION"
+  BRANCH=$(release_branch "$VERSION")
   WORK=$(mktemp -d)
   : >"$WORK/pins"
 

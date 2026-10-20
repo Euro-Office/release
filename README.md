@@ -7,10 +7,14 @@ Releases DocumentServer and DesktopEditors with one version and tags it across a
 A version (`9.3.6`) is released in rounds: one or more release candidates (`9.3.6-rc.1`, `9.3.6-rc.2`) and the final release. Each round:
 
 1. Run **Release issue** with the version. The first round opens the `Release 9.3.6` issue that tracks blockers and the milestone ([template](.github/release/issue.md)); every round adds its [checklist](.github/release/round.md) as a comment. Follow that checklist.
-2. Run **Prepare release** with the version. It pins every submodule to its latest default-branch commit (shared submodules get the same commit in both products), bumps `VERSION` / `VERSION.txt`, prepends `CHANGELOG.md` and opens a `release/v<version>` PR in each product. The PR builds are the ones to QA.
+2. Run **Prepare release** with the version. It pins every submodule to its latest default-branch commit, or from the second round on to the latest commit of `stable-9.3.6` (shared submodules get the same commit in both products), bumps `VERSION` / `VERSION.txt`, prepends `CHANGELOG.md` and opens a `release/v<version>` PR in each product. The PR builds are the ones to QA.
 3. Review and merge the release PRs.
-4. Run **Tag release** with the same version and approve the `release` environment. It checks the merged PRs and that shared submodules match, then tags every submodule and finally the products, which starts their builds.
+4. Run **Tag release** with the same version and approve the `release` environment. It checks the merged PRs and that shared submodules match, then tags every submodule and finally the products, which starts their builds. The first tag of a version also creates `stable-9.3.6` at the tagged commit in every repo.
 5. The tag builds publish the GitHub releases, images and packages: rc tags as prereleases, the final tag as latest. The Nextcloud Office desktop installers still have to be signed and uploaded by hand.
+
+Later rounds only get what is backported: merge a fix on `main` first, then comment `/backport to stable-9.3.6` on the merged PR. `main` keeps its own `VERSION` and `CHANGELOG.md`; the tags and GitHub releases carry the notes of the rounds released from the branch.
+
+Turn off `bump_submodules` to keep the submodule commits the products already point at (`--no-bump` locally); `tag` still checks that shared submodules match.
 
 `products` limits a release to `ds` or `de`. The skipped product does not get that version.
 
