@@ -20,7 +20,7 @@ A rebuild re-runs the build of the same tag. A content change needs a new versio
 
 ### Sign DesktopEditors
 
-Take the artifacts from the DesktopEditors tag build, not from the PR build.
+Take the artifacts from the DesktopEditors tag build, not from the PR build. `scripts/signing-artifacts.sh {{VERSION}}` prints their URLs.
 
 - [ ] Windows: paste the URLs of `windows-signing-bundle-nextcloud-office-amd64` and `-arm64` into brander (one at a time), queue signing and download the installers
 - [ ] macOS: paste the URL of `macos-packages-nextcloud-office-arm64` into brander, queue signing and download the DMG
