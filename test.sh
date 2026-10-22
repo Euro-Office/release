@@ -58,10 +58,13 @@ check "new changelog" "$(cat "$tmp/CHANGELOG.md")" $'# Changelog\n\n## v9.3.6\n\
 rm -r "$tmp"
 tmp=$(mktemp -d)
 mkdir -p "$tmp"/desktopeditors/{9.3.5/2,9.3.6/0,9.3.7/0~rc.1} "$tmp"/docserver/9.3.6/0
-for p in windows-x64.exe windows-arm64.exe macos-arm64.dmg; do touch "$tmp/desktopeditors/9.3.6/0/Nextcloud-Office-DesktopEditors-9.3.6-0-$p"; done
+(cd "$tmp/desktopeditors/9.3.6/0" && touch Nextcloud-Office-DesktopEditors-9.3.6-0-{windows-x64.exe,windows-arm64.exe,macos-arm64.dmg} \
+	nextcloud-office-nextcloudoffice_9.3.6-0_{amd64,arm64}.deb nextcloud-office-nextcloudoffice-9.3.6-0.{x86_64,aarch64}.rpm \
+	nextcloud-office-nextcloudoffice-9.3.6-0-{x86_64,aarch64}.tar.xz)
 OFFICE_ROOT=$tmp scripts/update-latest-symlink.sh >/dev/null
 check "desktop latest" "$(readlink "$tmp/desktopeditors/latest")" 9.3.6/0
 check "desktop fixed link" "$(readlink "$tmp/desktopeditors/Nextcloud-Office-DesktopEditors-latest-macos-arm64.dmg")" 9.3.6/0/Nextcloud-Office-DesktopEditors-9.3.6-0-macos-arm64.dmg
+check "linux fixed link" "$(readlink "$tmp/desktopeditors/Nextcloud-Office-DesktopEditors-latest-linux-arm64.deb")" 9.3.6/0/nextcloud-office-nextcloudoffice_9.3.6-0_arm64.deb
 check "docserver latest" "$(readlink "$tmp/docserver/latest")" 9.3.6/0
 mkdir -p "$tmp"/desktopeditors/9.3.7/0 "$tmp"/docserver/9.3.7/0
 touch "$tmp/desktopeditors/9.3.7/0/Nextcloud-Office-DesktopEditors-9.3.7-0-windows-x64.exe"
