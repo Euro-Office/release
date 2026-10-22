@@ -11,7 +11,8 @@ status=0
 
 for product in desktopeditors docserver; do
 	cd "$root/$product"
-	target=$(find . -mindepth 2 -maxdepth 2 -type d -printf '%P\n' \
+	target=$(find . -mindepth 2 -maxdepth 2 -type d \
+		| sed 's#^\./##' \
 		| grep -E '^[0-9]+(\.[0-9]+)*/[0-9]+$' | sort -V | tail -n1 || true)
 	if [[ -z "$target" ]]; then
 		echo "No <version>/<build> directory in $root/$product" >&2
