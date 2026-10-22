@@ -21,7 +21,5 @@ Milestone commands use [`scripts/milestones.sh`](https://github.com/Euro-Office/
 - [ ] Create the next milestone: `./scripts/milestones.sh create <next>`
 - [ ] Move open items: `./scripts/milestones.sh move {{BASE}} <next>`
 - [ ] Close the milestone: `./scripts/milestones.sh close {{BASE}}`
-- [ ] Post the changelog with a link to the release in the team chat and Matrix
-- [ ] Ask the website team to update the version on the download page
 - [ ] Ask a Nextclouder to release the Euro-Office connector app, if needed
 - [ ] Close this issue
