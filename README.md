@@ -18,6 +18,25 @@ Turn off `bump_submodules` to keep the submodule commits the products already po
 
 `products` limits a release to `ds` or `de`. The skipped product does not get that version.
 
+### Hotfixes
+
+A hotfix of a released version is the next patch version, released from a branch of the previous one and usually without rc rounds. For a hotfix of 9.3.6:
+
+1. Create `stable-9.3.7` at the head of `stable-9.3.6` in both products and every submodule:
+   ```sh
+   for repo in DocumentServer DesktopEditors $(for p in DocumentServer DesktopEditors; do
+       gh api "repos/Euro-Office/$p/contents/.gitmodules" -H 'Accept: application/vnd.github.raw'
+     done | sed -nE 's#.*github\.com/Euro-Office/([^/]+)\.git$#\1#p' | sort -u); do
+     sha=$(gh api "repos/Euro-Office/$repo/git/ref/heads/stable-9.3.6" --jq .object.sha) &&
+       gh api "repos/Euro-Office/$repo/git/refs" -f ref=refs/heads/stable-9.3.7 -f sha="$sha" >/dev/null &&
+       echo "$repo: created stable-9.3.7 at $sha"
+   done
+   ```
+2. Merge the fix on `main` and comment `/backport to stable-9.3.7` on the merged PR.
+3. Release `9.3.7` as above. Since `stable-9.3.7` exists, prepare pins from it, the release PRs target it and the changelog covers the changes since `v9.3.6`.
+
+The next feature release from `main` then becomes 9.3.8 or 9.4.0. Suffixes do not work for hotfixes: `9.3.6-hotfix.1` and `9.3.6-1` build as prereleases with the package version `9.3.6-0~…`, which apt and dnf sort before `9.3.6-0`, and `9.3.6.1` is no valid tag for the builds.
+
 ## Local use
 
 Release through the workflows above, not from a local checkout: they run with the robot token and the tag workflow needs an approval. Locally, use `release.sh` for dry runs, the pending changelog and tests.
