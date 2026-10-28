@@ -51,6 +51,7 @@ want='### Breaking changes
 * web-apps: fix(deps): update svgo by @g in https://github.com/Euro-Office/web-apps/pull/7'
 check "group_notes" "$(group_notes <<<"$prs")" "$want"
 check "pr_links" "$(pr_links <<<'* core: fix crash by @renovate[bot] in https://github.com/Euro-Office/DocumentServer/pull/420')" '* core: fix crash by renovate[bot] in [DocumentServer#420](https://github.com/Euro-Office/DocumentServer/pull/420)'
+check "group_notes backports" "$(group_notes <<<$'core\tfix(deps): bump brotli [stable-9.3.7] by @a in https://github.com/Euro-Office/core/pull/189\nDocumentServer\t[stable-9.3.7] ci: x by @b in https://github.com/Euro-Office/DocumentServer/pull/479')" $'### Other changes\n\n* core: fix(deps): bump brotli by @a in https://github.com/Euro-Office/core/pull/189\n* DocumentServer: ci: x by @b in https://github.com/Euro-Office/DocumentServer/pull/479'
 check "group_notes empty" "$(group_notes </dev/null)" ""
 tmp=$(mktemp -d)
 printf '# Change log\n\n## 9.3.5\n\n* old\n' >"$tmp/CHANGELOG.md"

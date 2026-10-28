@@ -88,6 +88,8 @@ pr_links() { sed -E 's#by @([^ ]+) in (https://github\.com/[^/ ]+/([^/ ]+)/pull/
 group_notes() {
   awk -F '\t' '
     {
+      # Backport PRs carry the target branch in the title.
+      sub(/^\[stable-[0-9.]+\] /, "", $2); sub(/ \[stable-[0-9.]+\] by @/, " by @", $2)
       group = "other"; line = $2
       if (match($2, /^[a-z]+(\([^)]*\))?!?: /)) {
         head = substr($2, 1, RLENGTH - 2); rest = substr($2, RLENGTH + 1); scope = ""
