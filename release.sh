@@ -27,8 +27,9 @@ product() {
   esac
 }
 
-valid_version() { [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?$ ]]; }
-# A numeric suffix (v9.3.5-2) is a rebuild of a stable release.
+# 9.3.7, a prerelease 9.3.7-rc.1 or a patch build 9.3.7-1 (build number 1, 0 is the plain release).
+valid_version() { [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+|-[1-9][0-9]*)?$ ]]; }
+# A numeric suffix (v9.3.7-1) is a patch build of a stable release.
 is_stable() { [[ $1 =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; }
 
 # stdin: tags, newest first. A stable release compares against the previous stable one.
@@ -387,7 +388,7 @@ main() {
     esac
   done
   for p in $PRODUCTS; do product "$p" >/dev/null; done
-  valid_version "$VERSION" || die "invalid version: $VERSION (expected e.g. 9.3.6 or 9.3.6-rc.1)"
+  valid_version "$VERSION" || die "invalid version: $VERSION (expected e.g. 9.3.6, 9.3.6-rc.1 or 9.3.6-1)"
   TAG="v$VERSION"
   BRANCH=$(release_branch "$VERSION")
   WORK=$(mktemp -d)
