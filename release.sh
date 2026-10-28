@@ -31,6 +31,7 @@ product() {
 valid_version() { [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+|-[1-9][0-9]*)?$ ]]; }
 # A numeric suffix (v9.3.7-1) is a patch build of a stable release.
 is_stable() { [[ $1 =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; }
+is_patch() { [[ $1 =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]; }
 
 # stdin: tags, newest first. A stable release compares against the previous stable one.
 previous_tag() {
@@ -166,7 +167,7 @@ notes_product() {
   git ls-remote --exit-code "https://github.com/$OWNER/$repo.git" "refs/heads/$BRANCH" >/dev/null || rc=$?
   case $rc in
     0) ref=refs/heads/$BRANCH base=$BRANCH ;;
-    2) ;;
+    2) ! is_patch "$TAG" || die "$repo: patch build $TAG needs $BRANCH, release the version first or use --products" ;;
     *) die "$repo: cannot look up $BRANCH" ;;
   esac
   echo "$base" >"$out.base"

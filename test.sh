@@ -13,6 +13,7 @@ check "stable after rebuild" "$(previous_tag v9.3.6 <<<$'v9.3.6-rc.1\nv9.3.5-2\n
 check "patch build" "$(previous_tag v9.3.7-1 <<<$'v9.3.7\nv9.3.7-rc.1\nv9.3.6')" v9.3.7
 check "second patch build" "$(previous_tag v9.3.7-2 <<<$'v9.3.7-1\nv9.3.7\nv9.3.7-rc.1')" v9.3.7-1
 check "patch build branch" "$(release_branch 9.3.7-1)" stable-9.3.7
+if ! { is_patch v9.3.7-1 && ! is_patch v9.3.7 && ! is_patch v9.3.7-rc.1; }; then echo "FAIL is_patch"; exit 1; fi
 check "no previous" "$(previous_tag v1.0.0 <<<"")" ""
 if (check_shared <(printf 'a/core 1\na/core 2\na/sdkjs 3\n')) 2>/dev/null; then echo "FAIL check_shared mismatch"; exit 1; fi
 check_shared <(printf 'a/core 1\na/sdkjs 3\n')
