@@ -27,9 +27,11 @@ product() {
   esac
 }
 
-valid_version() { [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?$ ]]; }
-# A numeric suffix (v9.3.5-2) is a rebuild of a stable release.
+# 9.3.7, a prerelease 9.3.7-rc.1 or a patch build 9.3.7-1 (build number 1, 0 is the plain release).
+valid_version() { [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+|-[1-9][0-9]*)?$ ]]; }
+# A numeric suffix (v9.3.7-1) is a patch build of a stable release.
 is_stable() { [[ $1 =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; }
+is_patch() { [[ $1 =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]; }
 
 # stdin: tags, newest first. A stable release compares against the previous stable one.
 previous_tag() {
@@ -86,6 +88,8 @@ pr_links() { sed -E 's#by @([^ ]+) in (https://github\.com/[^/ ]+/([^/ ]+)/pull/
 group_notes() {
   awk -F '\t' '
     {
+      # Backport PRs carry the target branch in the title.
+      sub(/^\[stable-[0-9.]+\] /, "", $2); sub(/ \[stable-[0-9.]+\] by @/, " by @", $2)
       group = "other"; line = $2
       if (match($2, /^[a-z]+(\([^)]*\))?!?: /)) {
         head = substr($2, 1, RLENGTH - 2); rest = substr($2, RLENGTH + 1); scope = ""
@@ -165,7 +169,7 @@ notes_product() {
   git ls-remote --exit-code "https://github.com/$OWNER/$repo.git" "refs/heads/$BRANCH" >/dev/null || rc=$?
   case $rc in
     0) ref=refs/heads/$BRANCH base=$BRANCH ;;
-    2) ;;
+    2) ! is_patch "$TAG" || die "$repo: patch build $TAG needs $BRANCH, release the version first or use --products" ;;
     *) die "$repo: cannot look up $BRANCH" ;;
   esac
   echo "$base" >"$out.base"
@@ -387,7 +391,7 @@ main() {
     esac
   done
   for p in $PRODUCTS; do product "$p" >/dev/null; done
-  valid_version "$VERSION" || die "invalid version: $VERSION (expected e.g. 9.3.6 or 9.3.6-rc.1)"
+  valid_version "$VERSION" || die "invalid version: $VERSION (expected e.g. 9.3.6, 9.3.6-rc.1 or 9.3.6-1)"
   TAG="v$VERSION"
   BRANCH=$(release_branch "$VERSION")
   WORK=$(mktemp -d)

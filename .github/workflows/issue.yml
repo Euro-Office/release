@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version without leading v, e.g. 9.3.6-rc.1 or 9.3.6'
+        description: 'Version without leading v, e.g. 9.3.6-rc.1, 9.3.6 or 9.3.6-1'
         required: true
         type: string
 
@@ -28,10 +28,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
         run: |
-          [[ $VERSION =~ ^([0-9]+\.[0-9]+\.[0-9]+)(-([a-z]+\.[0-9]+))?$ ]] || { echo "::error::invalid version: $VERSION"; exit 1; }
-          base=${BASH_REMATCH[1]}
-          # Download server directory of the build: 9.3.6 -> 9.3.6/0, 9.3.6-rc.1 -> 9.3.6/0~rc.1
-          build=0${BASH_REMATCH[3]:+~${BASH_REMATCH[3]}}
+          # Download server directory of the build: 9.3.6 -> 9.3.6/0, 9.3.6-rc.1 -> 9.3.6/0~rc.1, 9.3.6-1 -> 9.3.6/1
+          if [[ $VERSION =~ ^([0-9]+\.[0-9]+\.[0-9]+)-([1-9][0-9]*)$ ]]; then
+            base=${BASH_REMATCH[1]} build=${BASH_REMATCH[2]}
+          elif [[ $VERSION =~ ^([0-9]+\.[0-9]+\.[0-9]+)(-([a-z]+\.[0-9]+))?$ ]]; then
+            base=${BASH_REMATCH[1]} build=0${BASH_REMATCH[3]:+~${BASH_REMATCH[3]}}
+          else
+            echo "::error::invalid version: $VERSION"; exit 1
+          fi
           render() { sed -e "s/{{VERSION}}/$VERSION/g" -e "s/{{BASE}}/$base/g" -e "s/{{BUILD}}/$build/g" "$1"; }
 
           title="Release $base"

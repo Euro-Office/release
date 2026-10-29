@@ -4,7 +4,7 @@ Releases DocumentServer and DesktopEditors with one version and tags it across a
 
 ## Releasing
 
-A version (`9.3.6`) is released in rounds: one or more release candidates (`9.3.6-rc.1`, `9.3.6-rc.2`) and the final release. Each round:
+A version (`9.3.6`) is released in rounds: one or more release candidates (`9.3.6-rc.1`, `9.3.6-rc.2`) and the final release, later maybe [patch builds](#patch-builds) (`9.3.6-1`). Each round:
 
 1. Run **Release issue** with the version. The first round opens the `Release 9.3.6` issue that tracks blockers and the milestone ([template](.github/release/issue.md)); every round adds its [checklist](.github/release/round.md) as a comment. Follow that checklist.
 2. Run **Prepare release** with the version. It pins every submodule to its latest default-branch commit, or from the second round on to the latest commit of `stable-9.3.6` (shared submodules get the same commit in both products), bumps `VERSION` / `VERSION.txt`, prepends `CHANGELOG.md` and opens a `release/v<version>` PR in each product. The PR builds are the ones to QA.
@@ -35,7 +35,22 @@ A hotfix of a released version is the next patch version, released from a branch
 2. Merge the fix on `main` and comment `/backport to stable-9.3.7` on the merged PR.
 3. Release `9.3.7` as above. Since `stable-9.3.7` exists, prepare pins from it, the release PRs target it and the changelog covers the changes since `v9.3.6`.
 
-The next feature release from `main` then becomes 9.3.8 or 9.4.0. Suffixes do not work for hotfixes: `9.3.6-hotfix.1` and `9.3.6-1` build as prereleases with the package version `9.3.6-0~…`, which apt and dnf sort before `9.3.6-0`, and `9.3.6.1` is no valid tag for the builds.
+The next feature release from `main` then becomes 9.3.8 or 9.4.0. Letter suffixes like `9.3.6-hotfix.1` build as prereleases (`9.3.6-0~hotfix.1`), which apt and dnf sort before `9.3.6-0`.
+
+### Patch builds
+
+Dependency bumps and small fixes of a released version can ship as a patch build instead of a new patch version: `9.3.7-1` is build number 1 of 9.3.7 (`9.3.7` itself is build 0).
+
+| | 9.3.7 | 9.3.7-1 |
+|---|---|---|
+| deb/rpm | `9.3.7-0` | `9.3.7-1` |
+| Windows | `9.3.7.0` | `9.3.7.1` |
+| download dir | `9.3.7/0` | `9.3.7/1` |
+
+1. Backport the changes to `stable-9.3.7` (`/backport to stable-9.3.7`).
+2. Release `9.3.7-1` as above, without rc rounds: QA the release PR builds. Prepare pins from `stable-9.3.7` and the changelog covers the changes since `v9.3.7`. The build is stable: APT/DNF, `latest` images and releases.
+
+`9.3.7-0` and prereleases of patch builds (`9.3.7-1-rc.1`) are rejected, both would sort wrong. Use a new patch version (9.3.8) for fixes users should notice.
 
 ## Local use
 

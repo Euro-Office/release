@@ -2,6 +2,8 @@
 
 When releasing a single product (`products: ds|de`), skip the other product's items.
 
+A patch build (`{{BASE}}-N`) counts as a final release.
+
 ### Prepare
 
 - [ ] Second round onwards: fixes for this version are merged on `main` and backported to `stable-{{BASE}}` (`/backport to stable-{{BASE}}` on the merged PR)

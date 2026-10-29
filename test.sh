@@ -10,13 +10,18 @@ check "stable after rcs" "$(previous_tag v9.3.5 <<<"$tags")" v9.3.4
 check "ignores itself" "$(previous_tag v9.3.5-rc.2 <<<"$tags")" v9.3.5-rc.1
 check "numeric suffix" "$(previous_tag v0.0.0-next.1 <<<$'v9.3.5-2\nv9.3.5-1\nv9.3.1')" v9.3.5-2
 check "stable after rebuild" "$(previous_tag v9.3.6 <<<$'v9.3.6-rc.1\nv9.3.5-2\nv9.3.5-1\nv9.3.1')" v9.3.5-2
+check "patch build" "$(previous_tag v9.3.7-1 <<<$'v9.3.7\nv9.3.7-rc.1\nv9.3.6')" v9.3.7
+check "second patch build" "$(previous_tag v9.3.7-2 <<<$'v9.3.7-1\nv9.3.7\nv9.3.7-rc.1')" v9.3.7-1
+check "patch build branch" "$(release_branch 9.3.7-1)" stable-9.3.7
+if ! { is_patch v9.3.7-1 && ! is_patch v9.3.7 && ! is_patch v9.3.7-rc.1; }; then echo "FAIL is_patch"; exit 1; fi
 check "no previous" "$(previous_tag v1.0.0 <<<"")" ""
 if (check_shared <(printf 'a/core 1\na/core 2\na/sdkjs 3\n')) 2>/dev/null; then echo "FAIL check_shared mismatch"; exit 1; fi
 check_shared <(printf 'a/core 1\na/sdkjs 3\n')
 check "release branch" "$(release_branch 9.3.6-rc.2)" stable-9.3.6
 check "slug https" "$(slug https://github.com/Euro-Office/core.git)" Euro-Office/core
 check "slug ssh" "$(slug git@github.com:Euro-Office/core)" Euro-Office/core
-if ! { valid_version 9.3.6 && valid_version 9.3.6-rc.1 && ! valid_version v9.3.6 && ! valid_version 9.3; }; then
+if ! { valid_version 9.3.6 && valid_version 9.3.6-rc.1 && valid_version 9.3.7-1 && valid_version 9.3.7-12 && valid_version 9.3.7-beta.1 &&
+  ! valid_version v9.3.6 && ! valid_version 9.3 && ! valid_version 9.3.7-0 && ! valid_version 9.3.7-01 && ! valid_version 9.3.7-1-rc.1; }; then
   echo "FAIL valid_version"; exit 1
 fi
 prs=$'web-apps\tfeat(chat): add mentions by @a in https://github.com/Euro-Office/web-apps/pull/1
@@ -46,6 +51,7 @@ want='### Breaking changes
 * web-apps: fix(deps): update svgo by @g in https://github.com/Euro-Office/web-apps/pull/7'
 check "group_notes" "$(group_notes <<<"$prs")" "$want"
 check "pr_links" "$(pr_links <<<'* core: fix crash by @renovate[bot] in https://github.com/Euro-Office/DocumentServer/pull/420')" '* core: fix crash by renovate[bot] in [DocumentServer#420](https://github.com/Euro-Office/DocumentServer/pull/420)'
+check "group_notes backports" "$(group_notes <<<$'core\tfix(deps): bump brotli [stable-9.3.7] by @a in https://github.com/Euro-Office/core/pull/189\nDocumentServer\t[stable-9.3.7] ci: x by @b in https://github.com/Euro-Office/DocumentServer/pull/479')" $'### Other changes\n\n* core: fix(deps): bump brotli by @a in https://github.com/Euro-Office/core/pull/189\n* DocumentServer: ci: x by @b in https://github.com/Euro-Office/DocumentServer/pull/479'
 check "group_notes empty" "$(group_notes </dev/null)" ""
 tmp=$(mktemp -d)
 printf '# Change log\n\n## 9.3.5\n\n* old\n' >"$tmp/CHANGELOG.md"
@@ -71,5 +77,8 @@ touch "$tmp/desktopeditors/9.3.7/0/Nextcloud-Office-DesktopEditors-9.3.7-0-windo
 if OFFICE_ROOT=$tmp scripts/update-latest-symlink.sh >/dev/null 2>&1; then echo "FAIL missing packages pass"; exit 1; fi
 check "desktop keeps latest" "$(readlink "$tmp/desktopeditors/latest")" 9.3.6/0
 check "docserver moves on" "$(readlink "$tmp/docserver/latest")" 9.3.7/0
+mkdir -p "$tmp"/docserver/9.3.7/1
+OFFICE_ROOT=$tmp scripts/update-latest-symlink.sh >/dev/null 2>&1 || true
+check "docserver patch build" "$(readlink "$tmp/docserver/latest")" 9.3.7/1
 rm -r "$tmp"
 echo ok
