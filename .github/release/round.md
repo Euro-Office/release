@@ -16,7 +16,7 @@ A patch build (`{{BASE}}-N`) counts as a final release.
 ### Tag
 
 - [ ] [Tag release](https://github.com/Euro-Office/release/actions/workflows/tag.yml) with `{{VERSION}}`, approve the `release` environment deployment
-- [ ] Tag builds are green: [DocumentServer](https://github.com/Euro-Office/DocumentServer/actions/workflows/build.yml?query=branch%3Av{{VERSION}}), [DesktopEditors](https://github.com/Euro-Office/DesktopEditors/actions/workflows/build.yml?query=branch%3Av{{VERSION}})
+- [ ] Tag builds are green: [DocumentServer](https://github.com/Euro-Office/DocumentServer/actions/workflows/release.yml?query=branch%3Av{{VERSION}}), [DesktopEditors](https://github.com/Euro-Office/DesktopEditors/actions/workflows/build.yml?query=branch%3Av{{VERSION}})
 
 A rebuild re-runs the build of the same tag. A content change needs a new version.
 
