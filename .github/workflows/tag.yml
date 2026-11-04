@@ -38,3 +38,16 @@ jobs:
           args=(--products "$PRODUCTS")
           [ "$DRY_RUN" != true ] || args+=(--dry-run)
           ./release.sh tag "$VERSION" "${args[@]}"
+
+      - name: Forward-port changelog and version to main
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.EO_ROBOT_GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          PRODUCTS: ${{ inputs.products }}
+        run: |
+          gh auth setup-git
+          read -r login id < <(gh api user --jq '.login + " " + (.id | tostring)')
+          git config --global user.name "$login"
+          git config --global user.email "$id+$login@users.noreply.github.com"
+          ./release.sh forward-port "$VERSION" --products "$PRODUCTS"

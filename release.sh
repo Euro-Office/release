@@ -3,6 +3,7 @@
 #
 #   release.sh prepare <version> [--products both|ds|de] [--since <tag>] [--no-bump] [--dry-run]
 #   release.sh tag     <version> [--products both|ds|de] [--dry-run]
+#   release.sh forward-port <version> [--products both|ds|de] [--dry-run]
 #   release.sh check
 #   release.sh notes
 #
@@ -15,7 +16,7 @@ die() { echo "error: $*" >&2; exit 1; }
 log() { echo "==> $*" >&2; }
 
 usage() {
-  sed -n '4,7p' "$0" | sed 's/^# *//' >&2
+  sed -n '4,8p' "$0" | sed 's/^# *//' >&2
   exit 2
 }
 
@@ -41,6 +42,15 @@ previous_tag() {
 }
 
 release_branch() { echo "stable-${1%%-*}"; }
+
+# Sortable key of 9.3.7, v9.3.7-rc.1 or 9.3.7-1: prereleases sort before the release, patch builds after it.
+version_key() {
+  awk -v v="${1#v}" 'BEGIN {
+    if (!match(v, /^[0-9]+\.[0-9]+\.[0-9]+/)) exit 1
+    split(substr(v, 1, RLENGTH), n, "."); s = substr(v, RLENGTH + 1); b = s; sub(/^-[a-z]*\.?/, "", b)
+    printf "%06d%06d%06d%d%06d\n", n[1], n[2], n[3], s !~ /^-[a-z]/, b
+  }'
+}
 
 slug() { sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##; s#/$##' <<<"$1"; }
 
@@ -146,6 +156,35 @@ cmd_check() {
   done | sort -u -k1,1 | check_access
 }
 
+# Inserts the section of <tag> above the first older release, or appends it.
+insert_changelog() {
+  local file=$1 section=$2 key k n h line=""
+  key=$(version_key "$3")
+  while IFS=: read -r n h; do
+    k=$(version_key "${h#\#\# }") || continue
+    if [[ $k < $key ]]; then line=$n; break; fi
+  done < <(grep -n '^## ' "$file")
+  if [ -n "$line" ]; then
+    { head -n $((line - 1)) "$file"; cat "$section"; tail -n +"$line" "$file"; } >"$file.new"
+  else
+    { cat "$file"; echo; cat "$section"; } >"$file.new"
+  fi
+  mv "$file.new" "$file"
+}
+
+# stdin: a changelog. Prints the section of <tag>.
+changelog_section() { awk -v h="## $1" '/^## / { on = $0 == h } on'; }
+
+# Version of main (<current>) after the final release <version>: at least the next patch version.
+main_version() {
+  local next=${2%%-*}
+  next=${next%.*}.$((${next##*.} + 1))
+  if [[ $(version_key "${1%%-*}") < $(version_key "$next") ]]; then echo "$next"; else echo "$1"; fi
+}
+
+# Keeps the existing trailing-newline style of the version file.
+write_version() { if [ -n "$(tail -c 1 "$1")" ]; then printf '%s' "$2" >"$1"; else echo "$2" >"$1"; fi; }
+
 # Inserts the section below the file's top-level heading, keeping an existing one.
 prepend_changelog() {
   local file=$1 section=$2 header="# Changelog" rest=""
@@ -219,8 +258,7 @@ prepare_product() {
   local repo=$1 vfile=$2 dir="$WORK/$1"
   notes_product "$repo"
   git -C "$dir" checkout -q -b "release/$TAG"
-  # Keep the existing trailing-newline style of the version file.
-  if [ -n "$(tail -c 1 "$dir/$vfile")" ]; then printf '%s' "$VERSION" >"$dir/$vfile"; else echo "$VERSION" >"$dir/$vfile"; fi
+  write_version "$dir/$vfile" "$VERSION"
   prepend_changelog "$dir/CHANGELOG.md" "$WORK/$repo.section.md"
   git -C "$dir" add "$vfile" CHANGELOG.md
   git -C "$dir" commit -q -s -m "chore(release): $TAG"
@@ -272,6 +310,38 @@ cmd_prepare() {
   fi
 }
 
+# Rounds from a stable branch never reach main: copy their changelog section to main and,
+# after a final release, move main to the next patch version so its builds sort after the release.
+cmd_forward_port() {
+  local p repo vfile dir url
+  for p in $PRODUCTS; do
+    read -r repo vfile < <(product "$p")
+    dir="$WORK/$repo"
+    gh api "repos/$OWNER/$repo/contents/CHANGELOG.md?ref=$TAG" -H 'Accept: application/vnd.github.raw' |
+      changelog_section "$TAG" >"$WORK/$repo.section.md"
+    [ -s "$WORK/$repo.section.md" ] || die "$repo: CHANGELOG.md of $TAG has no section $TAG"
+    gh repo clone "$OWNER/$repo" "$dir" -- -q --depth 1 --branch main
+    git -C "$dir" checkout -q -b "forward-port/$TAG"
+    [ -f "$dir/CHANGELOG.md" ] || die "$repo: main has no CHANGELOG.md"
+    grep -qxF "## $TAG" "$dir/CHANGELOG.md" || insert_changelog "$dir/CHANGELOG.md" "$WORK/$repo.section.md" "$TAG"
+    ! is_stable "$TAG" || write_version "$dir/$vfile" "$(main_version "$(tr -d '[:space:]' <"$dir/$vfile")" "$VERSION")"
+    if git -C "$dir" diff --quiet; then
+      log "$repo: main already has $TAG"
+      continue
+    fi
+    git -C "$dir" commit -q -a -s -m "chore(release): forward-port $TAG to main"
+    if $DRY_RUN; then
+      git --no-pager -C "$dir" show --format='%h %s' HEAD
+      continue
+    fi
+    git -C "$dir" push -q --force origin "forward-port/$TAG"
+    url=$(gh pr view "forward-port/$TAG" -R "$OWNER/$repo" --json url --jq .url 2>/dev/null) ||
+      url=$(gh pr create -R "$OWNER/$repo" --base main --head "forward-port/$TAG" \
+        --title "chore(release): forward-port $TAG to main" \
+        --body "Changelog of $TAG and, after a final release, the next patch version on \`main\`. Release PRs from \`$BRANCH\` do not reach \`main\`.")
+    log "$repo: $url"
+  done
+}
 
 # Changelog of everything that the next release would contain, per product.
 cmd_notes() {
@@ -400,6 +470,7 @@ main() {
   case $cmd in
     prepare) cmd_prepare ;;
     tag) cmd_tag ;;
+    forward-port) cmd_forward_port ;;
     *) usage ;;
   esac
 }
