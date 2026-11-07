@@ -61,6 +61,22 @@ check "keeps existing header" "$(cat "$tmp/CHANGELOG.md")" $'# Change log\n\n## 
 rm "$tmp/CHANGELOG.md"
 prepend_changelog "$tmp/CHANGELOG.md" "$tmp/section"
 check "new changelog" "$(cat "$tmp/CHANGELOG.md")" $'# Changelog\n\n## v9.3.6\n\n* new'
+check "version order" "$(for v in v9.3.7-1 9.3.5 v9.3.8-rc.1 v9.3.7 v9.3.7-rc.2 v9.3.10 v9.3.7-rc.10; do echo "$(version_key "$v") $v"; done | sort | awk '{ print $2 }' | xargs)" \
+  "9.3.5 v9.3.7-rc.2 v9.3.7-rc.10 v9.3.7 v9.3.7-1 v9.3.8-rc.1 v9.3.10"
+if version_key "Unreleased" >/dev/null; then echo "FAIL version_key accepts non-versions"; exit 1; fi
+check "main after final" "$(main_version 9.3.8-rc.1 9.3.8)" 9.3.9
+check "main after patch build" "$(main_version 9.3.8 9.3.8-1)" 9.3.9
+check "main ahead of hotfix" "$(main_version 9.3.8-rc.1 9.3.7-1)" 9.3.8-rc.1
+check "main ahead of release" "$(main_version 9.4.0-rc.1 9.3.8)" 9.4.0-rc.1
+printf '# Changelog\n\n## v9.3.8-rc.1\n\n* d\n\n## v9.3.6-rc.1\n\n* a\n\n## 9.3.5\n\n* old\n' >"$tmp/CHANGELOG.md"
+printf '# Changelog\n\n## v9.3.7\n\n* c\n\n## v9.3.6\n\n### Bug fixes\n\n* b\n\n## v9.3.6-rc.1\n\n* a\n' | changelog_section v9.3.6 >"$tmp/section"
+check "changelog_section" "$(cat "$tmp/section")" $'## v9.3.6\n\n### Bug fixes\n\n* b'
+insert_changelog "$tmp/CHANGELOG.md" "$tmp/section" v9.3.6
+printf '## v9.3.7\n\n* c\n\n' >"$tmp/section"
+insert_changelog "$tmp/CHANGELOG.md" "$tmp/section" v9.3.7
+printf '## 9.3.0\n\n* oldest\n' >"$tmp/section"
+insert_changelog "$tmp/CHANGELOG.md" "$tmp/section" 9.3.0
+check "insert_changelog" "$(cat "$tmp/CHANGELOG.md")" $'# Changelog\n\n## v9.3.8-rc.1\n\n* d\n\n## v9.3.7\n\n* c\n\n## v9.3.6\n\n### Bug fixes\n\n* b\n\n## v9.3.6-rc.1\n\n* a\n\n## 9.3.5\n\n* old\n\n## 9.3.0\n\n* oldest'
 rm -r "$tmp"
 tmp=$(mktemp -d)
 mkdir -p "$tmp"/desktopeditors/{9.3.5/2,9.3.6/0,9.3.7/0~rc.1} "$tmp"/docserver/9.3.6/0

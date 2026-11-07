@@ -12,7 +12,7 @@ A version (`9.3.6`) is released in rounds: one or more release candidates (`9.3.
 4. Run **Tag release** with the same version and approve the `release` environment. It checks the merged PRs and that shared submodules match, then tags every submodule and finally the products, which starts their builds. The first tag of a version also creates `stable-9.3.6` at the tagged commit in every repo.
 5. The tag builds publish the GitHub releases, images and packages: rc tags as prereleases, the final tag as latest. The Nextcloud Office desktop installers still have to be signed and uploaded by hand.
 
-Later rounds only get what is backported: merge a fix on `main` first, then comment `/backport to stable-9.3.6` on the merged PR. `main` keeps its own `VERSION` and `CHANGELOG.md`; the tags and GitHub releases carry the notes of the rounds released from the branch.
+Later rounds only get what is backported: merge a fix on `main` first, then comment `/backport to stable-9.3.6` on the merged PR. The release PRs of these rounds target the branch, so **Tag release** opens a `forward-port/v<version>` PR on `main` with the round's `CHANGELOG.md` section and, after a final release or patch build, moves `VERSION` on `main` to the next patch version (9.3.6 → 9.3.7) unless `main` is already ahead. The next rc.1 sets the real next version. Locally: `./release.sh forward-port 9.3.6 --dry-run`.
 
 Turn off `bump_submodules` to keep the submodule commits the products already point at (`--no-bump` locally); `tag` still checks that shared submodules match.
 
