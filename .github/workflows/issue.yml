@@ -36,7 +36,8 @@ jobs:
           else
             echo "::error::invalid version: $VERSION"; exit 1
           fi
-          render() { sed -e "s/{{VERSION}}/$VERSION/g" -e "s/{{BASE}}/$base/g" -e "s/{{BUILD}}/$build/g" "$1"; }
+          branch=stable-${base%.*}
+          render() { sed -e "s/{{VERSION}}/$VERSION/g" -e "s/{{BASE}}/$base/g" -e "s/{{BUILD}}/$build/g" -e "s/{{BRANCH}}/$branch/g" "$1"; }
 
           title="Release $base"
           url=$(gh issue list -R "$GITHUB_REPOSITORY" --search "\"$title\" in:title" --json title,url \

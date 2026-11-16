@@ -8,16 +8,23 @@ tags=$'v9.3.5-rc.2\nv9.3.5-rc.1\nv9.3.4-hotfix.1\nv9.3.4\nv99.99.99.4652\nwin-v4
 check "rc after rc" "$(previous_tag v9.3.5-rc.3 <<<"$tags")" v9.3.5-rc.2
 check "stable after rcs" "$(previous_tag v9.3.5 <<<"$tags")" v9.3.4
 check "ignores itself" "$(previous_tag v9.3.5-rc.2 <<<"$tags")" v9.3.5-rc.1
-check "numeric suffix" "$(previous_tag v0.0.0-next.1 <<<$'v9.3.5-2\nv9.3.5-1\nv9.3.1')" v9.3.5-2
+check "numeric suffix" "$(previous_tag v999999.0.0-next.1 <<<$'v9.3.5-2\nv9.3.5-1\nv9.3.1')" v9.3.5-2
+check "patch after next minor" "$(previous_tag v9.3.10 <<<$'v9.4.0\nv9.4.0-rc.1\nv9.3.9-1\nv9.3.9\nv9.3.8')" v9.3.9-1
+check "rc after next minor" "$(previous_tag v9.3.10-rc.1 <<<$'v9.4.0\nv9.3.9\nv9.3.9-rc.1')" v9.3.9
+check "next minor" "$(previous_tag v9.4.0 <<<$'v9.3.10\nv9.4.0-rc.1\nv9.3.9')" v9.3.10
+check "unsorted input" "$(previous_tag v9.3.10 <<<$'v9.3.8\nv9.3.9\nv9.3.7')" v9.3.9
 check "stable after rebuild" "$(previous_tag v9.3.6 <<<$'v9.3.6-rc.1\nv9.3.5-2\nv9.3.5-1\nv9.3.1')" v9.3.5-2
 check "patch build" "$(previous_tag v9.3.7-1 <<<$'v9.3.7\nv9.3.7-rc.1\nv9.3.6')" v9.3.7
 check "second patch build" "$(previous_tag v9.3.7-2 <<<$'v9.3.7-1\nv9.3.7\nv9.3.7-rc.1')" v9.3.7-1
-check "patch build branch" "$(release_branch 9.3.7-1)" stable-9.3.7
+check "patch build branch" "$(release_branch 9.3.7-1)" stable-9.3
+check "two-digit minor branch" "$(release_branch 10.12.3)" stable-10.12
+if ! { needs_branch v9.3.9 && needs_branch v9.3.9-rc.1 && needs_branch v9.4.0-1 &&
+  ! needs_branch v9.4.0 && ! needs_branch v9.4.0-rc.2 && ! needs_branch v10.0.0; }; then echo "FAIL needs_branch"; exit 1; fi
 if ! { is_patch v9.3.7-1 && ! is_patch v9.3.7 && ! is_patch v9.3.7-rc.1; }; then echo "FAIL is_patch"; exit 1; fi
 check "no previous" "$(previous_tag v1.0.0 <<<"")" ""
 if (check_shared <(printf 'a/core 1\na/core 2\na/sdkjs 3\n')) 2>/dev/null; then echo "FAIL check_shared mismatch"; exit 1; fi
 check_shared <(printf 'a/core 1\na/sdkjs 3\n')
-check "release branch" "$(release_branch 9.3.6-rc.2)" stable-9.3.6
+check "release branch" "$(release_branch 9.3.6-rc.2)" stable-9.3
 check "slug https" "$(slug https://github.com/Euro-Office/core.git)" Euro-Office/core
 check "slug ssh" "$(slug git@github.com:Euro-Office/core)" Euro-Office/core
 if ! { valid_version 9.3.6 && valid_version 9.3.6-rc.1 && valid_version 9.3.7-1 && valid_version 9.3.7-12 && valid_version 9.3.7-beta.1 &&
@@ -64,10 +71,6 @@ check "new changelog" "$(cat "$tmp/CHANGELOG.md")" $'# Changelog\n\n## v9.3.6\n\
 check "version order" "$(for v in v9.3.7-1 9.3.5 v9.3.8-rc.1 v9.3.7 v9.3.7-rc.2 v9.3.10 v9.3.7-rc.10; do echo "$(version_key "$v") $v"; done | sort | awk '{ print $2 }' | xargs)" \
   "9.3.5 v9.3.7-rc.2 v9.3.7-rc.10 v9.3.7 v9.3.7-1 v9.3.8-rc.1 v9.3.10"
 if version_key "Unreleased" >/dev/null; then echo "FAIL version_key accepts non-versions"; exit 1; fi
-check "main after final" "$(main_version 9.3.8-rc.1 9.3.8)" 9.3.9
-check "main after patch build" "$(main_version 9.3.8 9.3.8-1)" 9.3.9
-check "main ahead of hotfix" "$(main_version 9.3.8-rc.1 9.3.7-1)" 9.3.8-rc.1
-check "main ahead of release" "$(main_version 9.4.0-rc.1 9.3.8)" 9.4.0-rc.1
 printf '# Changelog\n\n## v9.3.8-rc.1\n\n* d\n\n## v9.3.6-rc.1\n\n* a\n\n## 9.3.5\n\n* old\n' >"$tmp/CHANGELOG.md"
 printf '# Changelog\n\n## v9.3.7\n\n* c\n\n## v9.3.6\n\n### Bug fixes\n\n* b\n\n## v9.3.6-rc.1\n\n* a\n' | changelog_section v9.3.6 >"$tmp/section"
 check "changelog_section" "$(cat "$tmp/section")" $'## v9.3.6\n\n### Bug fixes\n\n* b'

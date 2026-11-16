@@ -33,15 +33,21 @@ valid_version() { [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+|-[1-9][0-9]*)
 # A numeric suffix (v9.3.7-1) is a patch build of a stable release.
 is_stable() { [[ $1 =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; }
 is_patch() { [[ $1 =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]; }
+# Only X.Y.0 and its rounds may start from main, later patch versions and patch builds need stable-X.Y.
+needs_branch() { [[ $1 =~ ^v[0-9]+\.[0-9]+\.([0-9]+) ]] && { [ "${BASH_REMATCH[1]}" != 0 ] || is_patch "$1"; }; }
 
-# stdin: tags, newest first. A stable release compares against the previous stable one.
+# stdin: tags. Prints the highest release below <tag>, so a 9.3.10 after 9.4.0 compares against 9.3.9.
+# A stable release compares against the previous stable one.
 previous_tag() {
-  local re='v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?'
+  local re='v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?' key t
   is_stable "$1" || re='v[0-9]+\.[0-9]+\.[0-9]+(-[0-9a-z.]+)?'
-  grep -Ex "$re" | grep -vxF "$1" | head -n 1 || true
+  key=$(version_key "$1")
+  { grep -Ex "$re" || true; } | while read -r t; do echo "$(version_key "$t") $t"; done |
+    awk -v k="$key" '($1 "") < (k "") { print }' | sort | tail -n 1 | cut -d ' ' -f 2
 }
 
-release_branch() { echo "stable-${1%%-*}"; }
+# One long-lived branch per minor version: 9.3.6-rc.1, 9.3.7 and 9.3.7-1 all release from stable-9.3.
+release_branch() { local v=${1%%-*}; echo "stable-${v%.*}"; }
 
 # Sortable key of 9.3.7, v9.3.7-rc.1 or 9.3.7-1: prereleases sort before the release, patch builds after it.
 version_key() {
@@ -175,13 +181,6 @@ insert_changelog() {
 # stdin: a changelog. Prints the section of <tag>.
 changelog_section() { awk -v h="## $1" '/^## / { on = $0 == h } on'; }
 
-# Version of main (<current>) after the final release <version>: at least the next patch version.
-main_version() {
-  local next=${2%%-*}
-  next=${next%.*}.$((${next##*.} + 1))
-  if [[ $(version_key "${1%%-*}") < $(version_key "$next") ]]; then echo "$next"; else echo "$1"; fi
-}
-
 # Keeps the existing trailing-newline style of the version file.
 write_version() { if [ -n "$(tail -c 1 "$1")" ]; then printf '%s' "$2" >"$1"; else echo "$2" >"$1"; fi; }
 
@@ -208,7 +207,7 @@ notes_product() {
   git ls-remote --exit-code "https://github.com/$OWNER/$repo.git" "refs/heads/$BRANCH" >/dev/null || rc=$?
   case $rc in
     0) ref=refs/heads/$BRANCH base=$BRANCH ;;
-    2) ! is_patch "$TAG" || die "$repo: patch build $TAG needs $BRANCH, release the version first or use --products" ;;
+    2) ! needs_branch "$TAG" || die "$repo: $TAG needs $BRANCH, the first tag of ${BRANCH#stable-}.0 creates it (or by hand, see README.md)" ;;
     *) die "$repo: cannot look up $BRANCH" ;;
   esac
   echo "$base" >"$out.base"
@@ -310,12 +309,12 @@ cmd_prepare() {
   fi
 }
 
-# Rounds from a stable branch never reach main: copy their changelog section to main and,
-# after a final release, move main to the next patch version so its builds sort after the release.
+# Rounds from a stable branch never reach main: copy their changelog section to main.
+# main keeps its own version, the next minor or major.
 cmd_forward_port() {
-  local p repo vfile dir url
+  local p repo dir url
   for p in $PRODUCTS; do
-    read -r repo vfile < <(product "$p")
+    read -r repo _ < <(product "$p")
     dir="$WORK/$repo"
     gh api "repos/$OWNER/$repo/contents/CHANGELOG.md?ref=$TAG" -H 'Accept: application/vnd.github.raw' |
       changelog_section "$TAG" >"$WORK/$repo.section.md"
@@ -324,7 +323,6 @@ cmd_forward_port() {
     git -C "$dir" checkout -q -b "forward-port/$TAG"
     [ -f "$dir/CHANGELOG.md" ] || die "$repo: main has no CHANGELOG.md"
     grep -qxF "## $TAG" "$dir/CHANGELOG.md" || insert_changelog "$dir/CHANGELOG.md" "$WORK/$repo.section.md" "$TAG"
-    ! is_stable "$TAG" || write_version "$dir/$vfile" "$(main_version "$(tr -d '[:space:]' <"$dir/$vfile")" "$VERSION")"
     if git -C "$dir" diff --quiet; then
       log "$repo: main already has $TAG"
       continue
@@ -338,7 +336,7 @@ cmd_forward_port() {
     url=$(gh pr view "forward-port/$TAG" -R "$OWNER/$repo" --json url --jq .url 2>/dev/null) ||
       url=$(gh pr create -R "$OWNER/$repo" --base main --head "forward-port/$TAG" \
         --title "chore(release): forward-port $TAG to main" \
-        --body "Changelog of $TAG and, after a final release, the next patch version on \`main\`. Release PRs from \`$BRANCH\` do not reach \`main\`.")
+        --body "Changelog of $TAG on \`main\`. Release PRs from \`$BRANCH\` do not reach \`main\`.")
     log "$repo: $url"
   done
 }
@@ -417,7 +415,7 @@ cmd_tag() {
     log "$slug: tagged $TAG"
   done <"$WORK/todo"
 
-  # The first tag of a version branches every repo, so later rounds only get what is backported.
+  # The first tag of a minor version branches every repo, so later rounds and patch versions only get what is backported.
   while read -r slug sha; do
     if gh api "repos/$slug/git/ref/heads/$BRANCH" >/dev/null 2>&1; then
       log "$slug: $BRANCH exists"
@@ -437,8 +435,9 @@ main() {
     return
   fi
   if [ "${1:-}" = notes ]; then
-    # A prerelease placeholder makes previous_tag pick the latest tag of any kind, its missing branch pins default branches.
-    TAG=v0.0.0-next.1 BRANCH=$(release_branch 0.0.0) BUMP=true PRODUCTS="ds de" SINCE="" WORK=$(mktemp -d)
+    # A prerelease placeholder above every version makes previous_tag pick the highest tag of any kind,
+    # its missing branch pins default branches.
+    TAG=v999999.0.0-next.1 BRANCH=$(release_branch 999999.0.0) BUMP=true PRODUCTS="ds de" SINCE="" WORK=$(mktemp -d)
     : >"$WORK/pins"
     cmd_notes
     return

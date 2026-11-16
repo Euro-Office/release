@@ -6,17 +6,17 @@ A patch build (`{{BASE}}-N`) counts as a final release.
 
 ### Prepare
 
-- [ ] Second round onwards: fixes for this version are merged on `main` and backported to `stable-{{BASE}}` (`/backport to stable-{{BASE}}` on the merged PR)
+- [ ] Second round onwards and patch versions: fixes for this version are merged on `main` and backported to `{{BRANCH}}` (`/backport to {{BRANCH}}` on the merged PR)
 - [ ] [Prepare release](https://github.com/Euro-Office/release/actions/workflows/prepare.yml) with `{{VERSION}}`
 - [ ] CI is green on the release PRs of [DocumentServer](https://github.com/Euro-Office/DocumentServer/pulls?q=head%3Arelease%2Fv{{VERSION}}) and [DesktopEditors](https://github.com/Euro-Office/DesktopEditors/pulls?q=head%3Arelease%2Fv{{VERSION}})
 - [ ] QA the PR builds (linked in the PR comments): packages on the supported distributions, Docker image, desktop installers
 - [ ] Blockers are fixed or moved
-- [ ] Approve and merge both release PRs (from the second round on they target `stable-{{BASE}}`)
+- [ ] Approve and merge both release PRs (they target `{{BRANCH}}` once it exists)
 
 ### Tag
 
 - [ ] [Tag release](https://github.com/Euro-Office/release/actions/workflows/tag.yml) with `{{VERSION}}`, approve the `release` environment deployment
-- [ ] Second round onwards, before the next round: merge the `forward-port/v{{VERSION}}` PRs on `main` of [DocumentServer](https://github.com/Euro-Office/DocumentServer/pulls?q=head%3Aforward-port%2Fv{{VERSION}}) and [DesktopEditors](https://github.com/Euro-Office/DesktopEditors/pulls?q=head%3Aforward-port%2Fv{{VERSION}})
+- [ ] Second round onwards and patch versions, before the next round: merge the `forward-port/v{{VERSION}}` PRs on `main` of [DocumentServer](https://github.com/Euro-Office/DocumentServer/pulls?q=head%3Aforward-port%2Fv{{VERSION}}) and [DesktopEditors](https://github.com/Euro-Office/DesktopEditors/pulls?q=head%3Aforward-port%2Fv{{VERSION}})
 - [ ] Tag builds are green: [DocumentServer](https://github.com/Euro-Office/DocumentServer/actions/workflows/release.yml?query=branch%3Av{{VERSION}}), [DesktopEditors](https://github.com/Euro-Office/DesktopEditors/actions/workflows/build.yml?query=branch%3Av{{VERSION}})
 
 A rebuild re-runs the build of the same tag. A content change needs a new version.
