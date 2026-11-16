@@ -39,7 +39,7 @@ jobs:
           [ "$DRY_RUN" != true ] || args+=(--dry-run)
           ./release.sh tag "$VERSION" "${args[@]}"
 
-      - name: Forward-port changelog and version to main
+      - name: Forward-port the changelog to main
         if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ secrets.EO_ROBOT_GITHUB_TOKEN }}
